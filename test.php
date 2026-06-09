@@ -136,7 +136,7 @@ $subj_perf_res = mysqli_query($conn, "SELECT s.name as subject_name, AVG(r.perce
                                      JOIN tests t ON r.test_id = t.id 
                                      JOIN subjects s ON t.subject_id = s.id 
                                      WHERE r.student_id = $student_id 
-                                     GROUP BY t.subject_id");
+                                     GROUP BY t.subject_id, s.name");
 if ($subj_perf_res) {
     while ($row = mysqli_fetch_assoc($subj_perf_res)) {
         $subj_perf[] = $row;

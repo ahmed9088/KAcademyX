@@ -35,7 +35,7 @@ $lead_query = "SELECT r.student_id, st.name as student_name, t.title as test_tit
                JOIN subjects s ON t.subject_id = s.id
                JOIN test_categories tc ON t.category_id = tc.id
                WHERE $where
-               GROUP BY r.student_id, r.test_id
+               GROUP BY r.student_id, r.test_id, st.name, t.title, s.name, tc.name, st.user_id
                ORDER BY max_score DESC, min_time ASC
                LIMIT 50";
 $lead_res = mysqli_query($conn, $lead_query);

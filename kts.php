@@ -71,9 +71,9 @@ if ($classes_res && $classes_res->num_rows > 0) {
     while ($row = $classes_res->fetch_assoc()) $live_classes[] = $row;
 }
 
-// Leaderboard — top 5 by highest single score
+// Leaderboard — top 5 by highest single score (only_full_group_by compliant)
 $leaderboard_res = $conn->query(
-    "SELECT tr.student_name, MAX(tr.score) as max_score, tr.category, MAX(tr.test_date) as last_date
+    "SELECT ANY_VALUE(tr.student_name) as student_name, MAX(tr.score) as max_score, ANY_VALUE(tr.category) as category, MAX(tr.test_date) as last_date
      FROM test_results tr
      GROUP BY tr.user_id
      ORDER BY max_score DESC

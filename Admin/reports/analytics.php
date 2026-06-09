@@ -21,7 +21,7 @@ $pass_rate = ($total_results > 0) ? round(($pass_count / $total_results) * 100, 
 $top_students_query = "SELECT st.name, st.email, AVG(r.percentage) as avg_score, COUNT(r.id) as tests_taken
                        FROM results r
                        JOIN students st ON r.student_id = st.id
-                       GROUP BY r.student_id
+                       GROUP BY r.student_id, st.name, st.email
                        ORDER BY avg_score DESC, tests_taken DESC
                        LIMIT 5";
 $top_students_res = $conn->query($top_students_query);
@@ -35,7 +35,7 @@ $test_perf_query = "SELECT t.title, s.name as subject_name, tc.name as category_
                     JOIN subjects s ON t.subject_id = s.id
                     JOIN test_categories tc ON t.category_id = tc.id
                     LEFT JOIN results r ON r.test_id = t.id
-                    GROUP BY t.id
+                    GROUP BY t.id, t.title, s.name, tc.name
                     ORDER BY attempts DESC";
 $test_perf_res = $conn->query($test_perf_query);
 
