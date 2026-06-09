@@ -132,8 +132,21 @@ if (!function_exists('getImagePath')) {
                 $db_pass = getenv('DB_PASS') !== false ? getenv('DB_PASS') : "";
                 $db_name = getenv('DB_NAME') ?: "kacademyx";
                 $db_port = getenv('DB_PORT') ?: 3306;
-                $hdr_conn = new mysqli($db_host, $db_user, $db_pass, $db_name, $db_port);
-                if (!$hdr_conn->connect_error) {
+                if ($db_host !== "localhost" && $db_host !== "127.0.0.1") {
+                    $hdr_conn = mysqli_init();
+                    if ($hdr_conn) {
+                        mysqli_ssl_set($hdr_conn, NULL, NULL, NULL, NULL, NULL);
+                        if (!@mysqli_real_connect($hdr_conn, $db_host, $db_user, $db_pass, $db_name, $db_port, NULL, MYSQLI_CLIENT_SSL)) {
+                            $hdr_conn = false;
+                        }
+                    }
+                } else {
+                    $hdr_conn = new mysqli($db_host, $db_user, $db_pass, $db_name, $db_port);
+                    if ($hdr_conn->connect_error) {
+                        $hdr_conn = false;
+                    }
+                }
+                if ($hdr_conn) {
                     $user_id = intval($_SESSION["id"]);
                     $st_res = mysqli_query($hdr_conn, "SELECT id FROM students WHERE user_id = $user_id");
                     if ($st_row = mysqli_fetch_assoc($st_res)) {
