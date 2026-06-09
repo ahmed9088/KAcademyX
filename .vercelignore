@@ -1,0 +1,12 @@
+.git
+.gemini
+composer.phar
+scratch/
+scrape_mcqs.py
+scraped_mcqs.json
+Readme.txt
+cleanup.php
+clear_session.php
+*.py
+*.log
+node_modules/

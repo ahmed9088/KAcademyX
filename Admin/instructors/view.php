@@ -88,7 +88,7 @@ $pageTitle = "View Instructor Details";
                         <div class="col-md-4 text-center">
                             <div class="position-relative">
                                 <?php if (!empty($instructor['profile_image'])): ?>
-                                    <img src="<?php echo '../' . $instructor['profile_image']; ?>" alt="Profile" class="rounded-circle img-thumbnail shadow" style="width: 200px; height: 200px; object-fit: cover;">
+                                    <img src="<?php echo htmlspecialchars(getImagePath($instructor['profile_image'], '')); ?>" alt="Profile" class="rounded-circle img-thumbnail shadow" style="width: 200px; height: 200px; object-fit: cover;">
                                 <?php else: ?>
                                     <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto shadow" style="width: 200px; height: 200px;">
                                         <i class="bi bi-person-fill text-white" style="font-size: 80px;"></i>

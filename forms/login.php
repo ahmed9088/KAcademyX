@@ -99,225 +99,60 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <title>Login - KAcademyX</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            font-family: 'Poppins', sans-serif;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .login-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            max-width: 900px;
-            width: 100%;
-            display: flex;
-            flex-wrap: wrap;
-        }
-        .login-image {
-            flex: 1;
-            background: linear-gradient(135deg, #4154f1 0%, #7b68ee 100%);
-            padding: 40px;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-height: 500px;
-        }
-        .login-image h2 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-        }
-        .login-image p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-            line-height: 1.6;
-        }
-        .login-form {
-            flex: 1;
-            padding: 40px;
-        }
-        .login-form h3 {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #333;
-            margin-bottom: 30px;
-        }
-        .form-group {
-            margin-bottom: 25px;
-            position: relative;
-        }
-        .form-group label {
-            font-weight: 500;
-            margin-bottom: 8px;
-            color: #555;
-        }
-        .form-control {
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            padding: 12px 15px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-        .form-control:focus {
-            border-color: #4154f1;
-            box-shadow: 0 0 0 0.2rem rgba(65, 84, 241, 0.25);
-        }
-        .form-group i {
-            position: absolute;
-            right: 15px;
-            top: 42px;
-            color: #999;
-        }
-        .btn-login {
-            background: linear-gradient(45deg, #4154f1, #7b68ee);
-            border: none;
-            color: white;
-            padding: 12px 30px;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 1rem;
-            width: 100%;
-            transition: all 0.3s ease;
-        }
-        .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(65, 84, 241, 0.4);
-            background: linear-gradient(45deg, #3141c5, #6a5acd);
-        }
-        .alert {
-            padding: 12px 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            border: none;
-        }
-        .alert-danger {
-            background-color: #fff5f5;
-            color: #e53e3e;
-        }
-        .form-text {
-            font-size: 0.9rem;
-            color: #666;
-            margin-top: 5px;
-        }
-        .signup-link {
-            text-align: center;
-            margin-top: 30px;
-            color: #666;
-        }
-        .signup-link a {
-            color: #4154f1;
-            font-weight: 600;
-            text-decoration: none;
-        }
-        .signup-link a:hover {
-            text-decoration: underline;
-        }
-        .back-link {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #4154f1;
-            font-weight: 500;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .back-link:hover {
-            color: #3141c5;
-        }
-        @media (max-width: 768px) {
-            .login-container {
-                flex-direction: column;
-                max-width: 400px;
-            }
-            .login-image {
-                min-height: 200px;
-                padding: 30px;
-            }
-            .login-image h2 {
-                font-size: 2rem;
-            }
-            .login-form {
-                padding: 30px;
-            }
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="../assets/css/main.css?v=<?php echo time(); ?>" rel="stylesheet">
 </head>
-<body>
-    <a href="../index.php" class="back-link">
+<body class="auth-body">
+
+    <a href="../index.php" class="back-button position-absolute top-0 start-0 m-4">
         <i class="bi bi-arrow-left"></i> Back to Home
     </a>
     
     <div class="login-container">
-        <div class="login-image">
-            <h2>Welcome Back!</h2>
-            <p>Login to access your courses, track your progress, and continue your learning journey with KAcademyX.</p>
-            <div class="mt-4">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    <span>Access all premium courses</span>
-                </div>
-                <div class="d-flex align-items-center mb-3">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    <span>Track your learning progress</span>
-                </div>
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    <span>Get personalized recommendations</span>
-                </div>
-            </div>
-        </div>
-        
         <div class="login-form">
-            <h3>Login to Your Account</h3>
+            <h3>Login to KAcademyX</h3>
+            <p class="auth-subtitle">Please enter your credentials to access your dashboard.</p>
             
             <?php 
             if (!empty($login_err)) {
-                echo '<div class="alert alert-danger">' . $login_err . '</div>';
+                echo '<div class="alert alert-danger d-flex align-items-center rounded-3 border-0 shadow-sm mb-4"><i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i> ' . $login_err . '</div>';
+            }
+            if (isset($_GET['signup']) && $_GET['signup'] == 'success') {
+                echo '<div class="alert alert-success d-flex align-items-center rounded-3 border-0 shadow-sm mb-4"><i class="bi bi-check-circle-fill me-2 fs-5"></i> Your account has been created successfully! Please login.</div>';
             }
             ?>
             
             <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-                <div class="form-group">
+                <div class="form-group <?php echo (!empty($email_err)) ? 'is-invalid-group' : ''; ?>">
                     <label for="email">Email Address</label>
-                    <input type="email" name="email" id="email" class="form-control <?php echo (!empty($email_err)) ? 'is-invalid' : ''; ?>" value="<?php echo $email; ?>" required>
+                    <input type="email" name="email" id="email" class="form-control <?php echo (!empty($email_err)) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars($email); ?>" required autocomplete="email">
                     <span class="invalid-feedback"><?php echo $email_err; ?></span>
-                    <div class="form-text">We'll never share your email with anyone else.</div>
-                    <i class="bi bi-envelope"></i>
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group <?php echo (!empty($password_err)) ? 'is-invalid-group' : ''; ?>">
                     <label for="password">Password</label>
-                    <input type="password" name="password" id="password" class="form-control <?php echo (!empty($password_err)) ? 'is-invalid' : ''; ?>" required>
+                    <div class="password-input-wrapper">
+                        <input type="password" name="password" id="password" class="form-control <?php echo (!empty($password_err)) ? 'is-invalid' : ''; ?>" required autocomplete="current-password">
+                        <i class="bi bi-eye password-toggle-btn" id="passwordToggle"></i>
+                    </div>
                     <span class="invalid-feedback"><?php echo $password_err; ?></span>
-                    <div class="form-text">Use 6 or more characters with a mix of letters and numbers.</div>
-                    <i class="bi bi-lock"></i>
                 </div>
                 
-                <div class="form-group">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="rememberMe">
+                <div class="form-group d-flex justify-content-between align-items-center mb-4">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" id="rememberMe" name="remember">
                         <label class="form-check-label" for="rememberMe">
                             Remember me
                         </label>
                     </div>
                 </div>
                 
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-login">Login</button>
-                </div>
+                <button type="submit" class="btn btn-login">
+                    <span>Login</span> <i class="bi bi-arrow-right"></i>
+                </button>
                 
                 <div class="signup-link">
                     <p>Don't have an account? <a href="signup.php">Sign up</a></p>
-                    <p><a href="forgot-password.php">Forgot your password?</a></p>
                 </div>
             </form>
         </div>
@@ -325,43 +160,68 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Simple client-side validation
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.querySelector('form');
             const emailInput = document.getElementById('email');
             const passwordInput = document.getElementById('password');
+            const passwordToggle = document.getElementById('passwordToggle');
             
+            // Password eye toggle functionality
+            if (passwordToggle) {
+                passwordToggle.addEventListener('click', function() {
+                    if (passwordInput.type === 'password') {
+                        passwordInput.type = 'text';
+                        passwordToggle.classList.remove('bi-eye');
+                        passwordToggle.classList.add('bi-eye-slash');
+                    } else {
+                        passwordInput.type = 'password';
+                        passwordToggle.classList.remove('bi-eye-slash');
+                        passwordToggle.classList.add('bi-eye');
+                    }
+                });
+            }
+            
+            // Client-side validation
             form.addEventListener('submit', function(event) {
                 let isValid = true;
                 
                 // Validate email
                 if (!emailInput.value.trim()) {
+                    emailInput.closest('.form-group').classList.add('is-invalid-group');
                     emailInput.classList.add('is-invalid');
                     isValid = false;
                 } else if (!validateEmail(emailInput.value)) {
+                    emailInput.closest('.form-group').classList.add('is-invalid-group');
                     emailInput.classList.add('is-invalid');
                     isValid = false;
                 } else {
+                    emailInput.closest('.form-group').classList.remove('is-invalid-group');
                     emailInput.classList.remove('is-invalid');
                 }
                 
                 // Validate password
                 if (!passwordInput.value.trim()) {
+                    passwordInput.closest('.form-group').classList.add('is-invalid-group');
                     passwordInput.classList.add('is-invalid');
                     isValid = false;
                 } else if (passwordInput.value.length < 6) {
+                    passwordInput.closest('.form-group').classList.add('is-invalid-group');
                     passwordInput.classList.add('is-invalid');
                     isValid = false;
                 } else {
+                    passwordInput.closest('.form-group').classList.remove('is-invalid-group');
                     passwordInput.classList.remove('is-invalid');
                 }
                 
-                if (!isValid) {
+                if (isValid) {
+                    const submitBtn = form.querySelector('.btn-login');
+                    submitBtn.classList.add('btn-loading');
+                    submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Logging in...`;
+                } else {
                     event.preventDefault();
                 }
             });
             
-            // Email validation function
             function validateEmail(email) {
                 const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
                 return re.test(String(email).toLowerCase());

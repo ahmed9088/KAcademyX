@@ -34,7 +34,8 @@ if ($stmt->execute()) {
     // Delete the profile image if it exists
     if (!empty($profile_image)) {
         // Extract filename from path
-        $image_path = "../" . $profile_image;
+        $filename = basename($profile_image);
+        $image_path = dirname(dirname(__DIR__)) . "/Admin/uploads/instructors/" . $filename;
         if (file_exists($image_path)) {
             unlink($image_path);
         }

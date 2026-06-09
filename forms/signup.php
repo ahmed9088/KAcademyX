@@ -175,375 +175,112 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <title>Sign Up - KAcademyX</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            font-family: 'Poppins', sans-serif;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .signup-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            max-width: 900px;
-            width: 100%;
-            display: flex;
-            flex-wrap: wrap;
-        }
-        .signup-image {
-            flex: 1;
-            background: linear-gradient(135deg, #4154f1 0%, #7b68ee 100%);
-            padding: 40px;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-height: 500px;
-        }
-        .signup-image h2 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-        }
-        .signup-image p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-            line-height: 1.6;
-        }
-        .signup-form {
-            flex: 1;
-            padding: 40px;
-        }
-        .signup-form h3 {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #333;
-            margin-bottom: 30px;
-        }
-        .form-group {
-            margin-bottom: 25px;
-            position: relative;
-        }
-        .form-group label {
-            font-weight: 500;
-            margin-bottom: 8px;
-            color: #555;
-        }
-        .form-control {
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            padding: 12px 15px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-        .form-control:focus {
-            border-color: #4154f1;
-            box-shadow: 0 0 0 0.2rem rgba(65, 84, 241, 0.25);
-        }
-        .form-group i {
-            position: absolute;
-            right: 15px;
-            top: 42px;
-            color: #999;
-        }
-        .btn-signup {
-            background: linear-gradient(45deg, #4154f1, #7b68ee);
-            border: none;
-            color: white;
-            padding: 12px 30px;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 1rem;
-            width: 100%;
-            transition: all 0.3s ease;
-        }
-        .btn-signup:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(65, 84, 241, 0.4);
-            background: linear-gradient(45deg, #3141c5, #6a5acd);
-        }
-        .alert {
-            padding: 12px 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            border: none;
-        }
-        .alert-danger {
-            background-color: #fff5f5;
-            color: #e53e3e;
-        }
-        .alert-success {
-            background-color: #f0fff4;
-            color: #38a169;
-        }
-        .form-text {
-            font-size: 0.9rem;
-            color: #666;
-            margin-top: 5px;
-        }
-        .login-link {
-            text-align: center;
-            margin-top: 30px;
-            color: #666;
-        }
-        .login-link a {
-            color: #4154f1;
-            font-weight: 600;
-            text-decoration: none;
-        }
-        .login-link a:hover {
-            text-decoration: underline;
-        }
-        .back-link {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #4154f1;
-            font-weight: 500;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .back-link:hover {
-            color: #3141c5;
-        }
-        .password-strength {
-            height: 5px;
-            margin-top: 8px;
-            border-radius: 5px;
-            background-color: #e0e0e0;
-            overflow: hidden;
-        }
-        .password-strength-meter {
-            height: 100%;
-            width: 0;
-            transition: width 0.3s ease, background-color 0.3s ease;
-        }
-        .weak {
-            width: 33%;
-            background-color: #e53e3e;
-        }
-        .medium {
-            width: 66%;
-            background-color: #dd6b20;
-        }
-        .strong {
-            width: 100%;
-            background-color: #38a169;
-        }
-        /* Avatar Selection Styles */
-        .avatar-selection {
-            margin-bottom: 25px;
-        }
-        .avatar-options {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-top: 10px;
-        }
-        .avatar-option {
-            position: relative;
-            cursor: pointer;
-            border-radius: 50%;
-            overflow: hidden;
-            border: 3px solid transparent;
-            transition: all 0.3s ease;
-        }
-        .avatar-option:hover {
-            transform: scale(1.05);
-            border-color: #4154f1;
-        }
-        .avatar-option.selected {
-            border-color: #4154f1;
-            box-shadow: 0 0 0 3px rgba(65, 84, 241, 0.3);
-        }
-        .avatar-option img {
-            width: 60px;
-            height: 60px;
-            object-fit: cover;
-        }
-        .avatar-option .checkmark {
-            position: absolute;
-            top: 0;
-            right: 0;
-            background: #4154f1;
-            color: white;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .avatar-option.selected .checkmark {
-            opacity: 1;
-        }
-        @media (max-width: 768px) {
-            .signup-container {
-                flex-direction: column;
-                max-width: 400px;
-            }
-            .signup-image {
-                min-height: 200px;
-                padding: 30px;
-            }
-            .signup-image h2 {
-                font-size: 2rem;
-            }
-            .signup-form {
-                padding: 30px;
-            }
-            .avatar-options {
-                justify-content: center;
-            }
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="../assets/css/main.css?v=<?php echo time(); ?>" rel="stylesheet">
 </head>
-<body>
-    <a href="../index.php" class="back-link">
+<body class="auth-body">
+
+    <a href="../index.php" class="back-button position-absolute top-0 start-0 m-4">
         <i class="bi bi-arrow-left"></i> Back to Home
     </a>
     
     <div class="signup-container">
-        <div class="signup-image">
-            <h2>Join KAcademyX</h2>
-            <p>Create your account to start your learning journey. Access premium courses, track your progress, and connect with expert instructors.</p>
-            <div class="mt-4">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    <span>Access 100+ premium courses</span>
-                </div>
-                <div class="d-flex align-items-center mb-3">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    <span>Learn at your own pace</span>
-                </div>
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    <span>Get certificates of completion</span>
-                </div>
-            </div>
-        </div>
-        
         <div class="signup-form">
             <h3>Create Your Account</h3>
+            <p class="auth-subtitle">Fill in the details below to register.</p>
             
             <?php 
-            if (isset($_GET['signup']) && $_GET['signup'] == 'success') {
-                echo '<div class="alert alert-success">Your account has been created successfully! Please login.</div>';
-            }
             if (!empty($signup_err)) {
-                echo '<div class="alert alert-danger">' . $signup_err . '</div>';
+                echo '<div class="alert alert-danger d-flex align-items-center rounded-3 border-0 shadow-sm mb-4"><i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i> ' . $signup_err . '</div>';
             }
             ?>
             
             <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-                <div class="form-group">
+                <div class="form-group <?php echo (!empty($name_err)) ? 'is-invalid-group' : ''; ?>">
                     <label for="name">Full Name</label>
-                    <input type="text" name="name" id="name" class="form-control <?php echo (!empty($name_err)) ? 'is-invalid' : ''; ?>" value="<?php echo $name; ?>" required>
+                    <input type="text" name="name" id="name" class="form-control <?php echo (!empty($name_err)) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars($name); ?>" required autocomplete="name">
                     <span class="invalid-feedback"><?php echo $name_err; ?></span>
-                    <div class="form-text">Use your real name as it will appear on your certificate.</div>
-                    <i class="bi bi-person"></i>
+                    <div class="form-text">Your name as it will appear on your certificate.</div>
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group <?php echo (!empty($username_err)) ? 'is-invalid-group' : ''; ?>">
                     <label for="username">Username</label>
-                    <input type="text" name="username" id="username" class="form-control <?php echo (!empty($username_err)) ? 'is-invalid' : ''; ?>" value="<?php echo $username; ?>" required>
+                    <input type="text" name="username" id="username" class="form-control <?php echo (!empty($username_err)) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars($username); ?>" required autocomplete="username">
                     <span class="invalid-feedback"><?php echo $username_err; ?></span>
-                    <div class="form-text">This will be your unique identifier. Use only letters, numbers, and underscores.</div>
-                    <i class="bi bi-person-badge"></i>
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group <?php echo (!empty($email_err)) ? 'is-invalid-group' : ''; ?>">
                     <label for="email">Email Address</label>
-                    <input type="email" name="email" id="email" class="form-control <?php echo (!empty($email_err)) ? 'is-invalid' : ''; ?>" value="<?php echo $email; ?>" required>
+                    <input type="email" name="email" id="email" class="form-control <?php echo (!empty($email_err)) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars($email); ?>" required autocomplete="email">
                     <span class="invalid-feedback"><?php echo $email_err; ?></span>
-                    <div class="form-text">We'll never share your email with anyone else.</div>
-                    <i class="bi bi-envelope"></i>
                 </div>
                 
                 <div class="form-group avatar-selection">
                     <label>Choose Your Avatar</label>
                     <div class="avatar-options">
-                        <div class="avatar-option" data-avatar="avatar1">
-                            <img src="../assets/avatars/avatar1.png" alt="Avatar 1">
-                            <div class="checkmark">
-                                <i class="bi bi-check"></i>
+                        <?php 
+                        $avatars = ['avatar1', 'avatar2', 'avatar3', 'avatar4', 'avatar5', 'avatar6'];
+                        foreach ($avatars as $av):
+                            $isSelected = ($avatar === $av) ? 'selected' : '';
+                        ?>
+                            <div class="avatar-option <?php echo $isSelected; ?>" data-avatar="<?php echo $av; ?>">
+                                <img src="../assets/avatars/<?php echo $av; ?>.png" alt="<?php echo ucfirst($av); ?>">
                             </div>
-                        </div>
-                        <div class="avatar-option" data-avatar="avatar2">
-                            <img src="../assets/avatars/avatar2.png" alt="Avatar 2">
-                            <div class="checkmark">
-                                <i class="bi bi-check"></i>
-                            </div>
-                        </div>
-                        <div class="avatar-option" data-avatar="avatar3">
-                            <img src="../assets/avatars/avatar3.png" alt="Avatar 3">
-                            <div class="checkmark">
-                                <i class="bi bi-check"></i>
-                            </div>
-                        </div>
-                        <div class="avatar-option" data-avatar="avatar4">
-                            <img src="../assets/avatars/avatar4.png" alt="Avatar 4">
-                            <div class="checkmark">
-                                <i class="bi bi-check"></i>
-                            </div>
-                        </div>
-                        <div class="avatar-option" data-avatar="avatar5">
-                            <img src="../assets/avatars/avatar5.png" alt="Avatar 5">
-                            <div class="checkmark">
-                                <i class="bi bi-check"></i>
-                            </div>
-                        </div>
-                        <div class="avatar-option" data-avatar="avatar6">
-                            <img src="../assets/avatars/avatar6.png" alt="Avatar 6">
-                            <div class="checkmark">
-                                <i class="bi bi-check"></i>
-                            </div>
-                        </div>
+                        <?php endforeach; ?>
                     </div>
-                    <input type="hidden" name="avatar" id="selectedAvatar" value="<?php echo $avatar; ?>" required>
-                    <span class="invalid-feedback"><?php echo $avatar_err; ?></span>
-                    <div class="form-text">Select an avatar that represents you. This will be visible on your profile.</div>
+                    <input type="hidden" name="avatar" id="selectedAvatar" value="<?php echo htmlspecialchars($avatar); ?>" required>
+                    <span class="invalid-feedback d-block" id="avatarError"><?php echo $avatar_err; ?></span>
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group <?php echo (!empty($password_err)) ? 'is-invalid-group' : ''; ?>">
                     <label for="password">Password</label>
-                    <input type="password" name="password" id="password" class="form-control <?php echo (!empty($password_err)) ? 'is-invalid' : ''; ?>" required>
+                    <div class="password-input-wrapper">
+                        <input type="password" name="password" id="password" class="form-control <?php echo (!empty($password_err)) ? 'is-invalid' : ''; ?>" required autocomplete="new-password">
+                        <i class="bi bi-eye password-toggle-btn" id="passwordToggle"></i>
+                    </div>
                     <span class="invalid-feedback"><?php echo $password_err; ?></span>
-                    <div class="form-text">Use 8 or more characters with a mix of uppercase, lowercase, and numbers.</div>
+                    
                     <div class="password-strength">
                         <div class="password-strength-meter" id="passwordStrength"></div>
                     </div>
-                    <i class="bi bi-lock"></i>
+                    
+                    <ul class="password-criteria-list">
+                        <li class="password-criteria-item" id="critLength">
+                            <i class="bi bi-circle"></i> 8+ Characters
+                        </li>
+                        <li class="password-criteria-item" id="critUpper">
+                            <i class="bi bi-circle"></i> 1 Uppercase (A-Z)
+                        </li>
+                        <li class="password-criteria-item" id="critLower">
+                            <i class="bi bi-circle"></i> 1 Lowercase (a-z)
+                        </li>
+                        <li class="password-criteria-item" id="critNumber">
+                            <i class="bi bi-circle"></i> 1 Number (0-9)
+                        </li>
+                    </ul>
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group <?php echo (!empty($confirm_password_err)) ? 'is-invalid-group' : ''; ?>">
                     <label for="confirm_password">Confirm Password</label>
-                    <input type="password" name="confirm_password" id="confirm_password" class="form-control <?php echo (!empty($confirm_password_err)) ? 'is-invalid' : ''; ?>" required>
+                    <div class="password-input-wrapper">
+                        <input type="password" name="confirm_password" id="confirm_password" class="form-control <?php echo (!empty($confirm_password_err)) ? 'is-invalid' : ''; ?>" required autocomplete="new-password">
+                        <i class="bi bi-eye password-toggle-btn" id="confirmPasswordToggle"></i>
+                    </div>
                     <span class="invalid-feedback"><?php echo $confirm_password_err; ?></span>
-                    <i class="bi bi-lock-fill"></i>
                 </div>
                 
                 <div class="form-group">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="agreeTerms" required>
                         <label class="form-check-label" for="agreeTerms">
-                            I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+                            I agree to the <a href="#">Terms of Service</a> &amp; <a href="#">Privacy Policy</a>
                         </label>
                     </div>
                 </div>
                 
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-signup">Create Account</button>
-                </div>
+                <button type="submit" class="btn btn-signup">
+                    <span>Create Account</span> <i class="bi bi-arrow-right"></i>
+                </button>
                 
                 <div class="login-link">
                     <p>Already have an account? <a href="login.php">Login</a></p>
@@ -564,128 +301,185 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             const passwordStrength = document.getElementById('passwordStrength');
             const selectedAvatarInput = document.getElementById('selectedAvatar');
             const avatarOptions = document.querySelectorAll('.avatar-option');
+            const avatarError = document.getElementById('avatarError');
             
+            const passwordToggle = document.getElementById('passwordToggle');
+            const confirmPasswordToggle = document.getElementById('confirmPasswordToggle');
+            
+            // Password criteria list items
+            const critLength = document.getElementById('critLength');
+            const critUpper = document.getElementById('critUpper');
+            const critLower = document.getElementById('critLower');
+            const critNumber = document.getElementById('critNumber');
+
+            // Password toggles
+            if (passwordToggle) {
+                passwordToggle.addEventListener('click', function() {
+                    if (passwordInput.type === 'password') {
+                        passwordInput.type = 'text';
+                        passwordToggle.classList.remove('bi-eye');
+                        passwordToggle.classList.add('bi-eye-slash');
+                    } else {
+                        passwordInput.type = 'password';
+                        passwordToggle.classList.remove('bi-eye-slash');
+                        passwordToggle.classList.add('bi-eye');
+                    }
+                });
+            }
+            if (confirmPasswordToggle) {
+                confirmPasswordToggle.addEventListener('click', function() {
+                    if (confirmPasswordInput.type === 'password') {
+                        confirmPasswordInput.type = 'text';
+                        confirmPasswordToggle.classList.remove('bi-eye');
+                        confirmPasswordToggle.classList.add('bi-eye-slash');
+                    } else {
+                        confirmPasswordInput.type = 'password';
+                        confirmPasswordToggle.classList.remove('bi-eye-slash');
+                        confirmPasswordToggle.classList.add('bi-eye');
+                    }
+                });
+            }
+
             // Avatar selection
             avatarOptions.forEach(option => {
                 option.addEventListener('click', function() {
-                    // Remove selected class from all options
                     avatarOptions.forEach(opt => opt.classList.remove('selected'));
-                    
-                    // Add selected class to clicked option
                     this.classList.add('selected');
-                    
-                    // Update hidden input with selected avatar
                     selectedAvatarInput.value = this.getAttribute('data-avatar');
+                    avatarError.textContent = '';
                 });
             });
             
-            // Password strength checker
+            // Password criteria & strength checker
             passwordInput.addEventListener('input', function() {
                 const password = passwordInput.value;
                 let strength = 0;
                 
-                if (password.length >= 8) strength++;
-                if (password.match(/[a-z]+/)) strength++;
-                if (password.match(/[A-Z]+/)) strength++;
-                if (password.match(/[0-9]+/)) strength++;
+                // 1. Length Criterion
+                if (password.length >= 8) {
+                    setCriterionMet(critLength, true);
+                    strength++;
+                } else {
+                    setCriterionMet(critLength, false);
+                }
                 
+                // 2. Lowercase Criterion
+                if (password.match(/[a-z]+/)) {
+                    setCriterionMet(critLower, true);
+                    strength++;
+                } else {
+                    setCriterionMet(critLower, false);
+                }
+                
+                // 3. Uppercase Criterion
+                if (password.match(/[A-Z]+/)) {
+                    setCriterionMet(critUpper, true);
+                    strength++;
+                } else {
+                    setCriterionMet(critUpper, false);
+                }
+                
+                // 4. Number Criterion
+                if (password.match(/[0-9]+/)) {
+                    setCriterionMet(critNumber, true);
+                    strength++;
+                } else {
+                    setCriterionMet(critNumber, false);
+                }
+                
+                // Update strength meter UI
                 passwordStrength.className = 'password-strength-meter';
-                if (strength === 1) {
+                if (strength === 1 || strength === 2) {
                     passwordStrength.classList.add('weak');
-                } else if (strength === 2 || strength === 3) {
+                } else if (strength === 3) {
                     passwordStrength.classList.add('medium');
                 } else if (strength === 4) {
                     passwordStrength.classList.add('strong');
                 }
             });
+
+            function setCriterionMet(element, isMet) {
+                const icon = element.querySelector('i');
+                if (isMet) {
+                    element.classList.add('met');
+                    icon.className = 'bi bi-check-circle-fill';
+                } else {
+                    element.classList.remove('met');
+                    icon.className = 'bi bi-circle';
+                }
+            }
             
-            // Form validation
+            // Client-side form validation
             form.addEventListener('submit', function(event) {
                 let isValid = true;
                 
                 // Validate name
-                if (!nameInput.value.trim()) {
-                    nameInput.classList.add('is-invalid');
-                    isValid = false;
-                } else if (nameInput.value.trim().length < 3) {
-                    nameInput.classList.add('is-invalid');
-                    isValid = false;
-                } else if (!/^[a-zA-Z\s]+$/.test(nameInput.value.trim())) {
+                if (!nameInput.value.trim() || nameInput.value.trim().length < 3 || !/^[a-zA-Z\s]+$/.test(nameInput.value.trim())) {
+                    nameInput.closest('.form-group').classList.add('is-invalid-group');
                     nameInput.classList.add('is-invalid');
                     isValid = false;
                 } else {
+                    nameInput.closest('.form-group').classList.remove('is-invalid-group');
                     nameInput.classList.remove('is-invalid');
                 }
                 
                 // Validate username
-                if (!usernameInput.value.trim()) {
-                    usernameInput.classList.add('is-invalid');
-                    isValid = false;
-                } else if (usernameInput.value.trim().length < 3) {
-                    usernameInput.classList.add('is-invalid');
-                    isValid = false;
-                } else if (!/^[a-zA-Z0-9_]+$/.test(usernameInput.value.trim())) {
+                if (!usernameInput.value.trim() || usernameInput.value.trim().length < 3 || !/^[a-zA-Z0-9_]+$/.test(usernameInput.value.trim())) {
+                    usernameInput.closest('.form-group').classList.add('is-invalid-group');
                     usernameInput.classList.add('is-invalid');
                     isValid = false;
                 } else {
+                    usernameInput.closest('.form-group').classList.remove('is-invalid-group');
                     usernameInput.classList.remove('is-invalid');
                 }
                 
                 // Validate email
-                if (!emailInput.value.trim()) {
-                    emailInput.classList.add('is-invalid');
-                    isValid = false;
-                } else if (!validateEmail(emailInput.value)) {
+                if (!emailInput.value.trim() || !validateEmail(emailInput.value)) {
+                    emailInput.closest('.form-group').classList.add('is-invalid-group');
                     emailInput.classList.add('is-invalid');
                     isValid = false;
                 } else {
+                    emailInput.closest('.form-group').classList.remove('is-invalid-group');
                     emailInput.classList.remove('is-invalid');
                 }
                 
                 // Validate avatar selection
                 if (!selectedAvatarInput.value) {
+                    avatarError.textContent = 'Please choose an avatar.';
                     isValid = false;
-                    // Show error or highlight the avatar selection
                 }
                 
-                // Validate password
-                if (!passwordInput.value.trim()) {
-                    passwordInput.classList.add('is-invalid');
-                    isValid = false;
-                } else if (passwordInput.value.length < 8) {
-                    passwordInput.classList.add('is-invalid');
-                    isValid = false;
-                } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/.test(passwordInput.value)) {
+                // Validate password strength criteria
+                const password = passwordInput.value;
+                const isPassStrong = password.length >= 8 && /[a-z]+/.test(password) && /[A-Z]+/.test(password) && /[0-9]+/.test(password);
+                if (!isPassStrong) {
+                    passwordInput.closest('.form-group').classList.add('is-invalid-group');
                     passwordInput.classList.add('is-invalid');
                     isValid = false;
                 } else {
+                    passwordInput.closest('.form-group').classList.remove('is-invalid-group');
                     passwordInput.classList.remove('is-invalid');
                 }
                 
                 // Validate confirm password
-                if (!confirmPasswordInput.value.trim()) {
-                    confirmPasswordInput.classList.add('is-invalid');
-                    isValid = false;
-                } else if (passwordInput.value !== confirmPasswordInput.value) {
+                if (!confirmPasswordInput.value.trim() || passwordInput.value !== confirmPasswordInput.value) {
+                    confirmPasswordInput.closest('.form-group').classList.add('is-invalid-group');
                     confirmPasswordInput.classList.add('is-invalid');
                     isValid = false;
                 } else {
+                    confirmPasswordInput.closest('.form-group').classList.remove('is-invalid-group');
                     confirmPasswordInput.classList.remove('is-invalid');
                 }
                 
-                // Validate terms checkbox
-                const agreeTerms = document.getElementById('agreeTerms');
-                if (!agreeTerms.checked) {
-                    isValid = false;
-                    // Show message or highlight the checkbox
-                }
-                
-                if (!isValid) {
+                if (isValid) {
+                    const submitBtn = form.querySelector('.btn-signup');
+                    submitBtn.classList.add('btn-loading');
+                    submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating Account...`;
+                } else {
                     event.preventDefault();
                 }
             });
             
-            // Email validation function
             function validateEmail(email) {
                 const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
                 return re.test(String(email).toLowerCase());

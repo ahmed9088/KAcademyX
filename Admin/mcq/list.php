@@ -1,9 +1,9 @@
 <?php
 include "../db.php";
+$pageTitle = "Manage MCQs";
 include "../includes/header.php";
 include "../includes/sidebar.php";
-include "../includes/footer.php"; 
-$pageTitle = "Manage MCQs";
+include "../includes/footer.php";
 // Get statistics for the dashboard
 $stats_query = "SELECT 
                     COUNT(*) as total_questions,
@@ -99,16 +99,14 @@ while ($row = $difficulties_result->fetch_assoc()) {
     $difficulties[] = $row['difficulty_level'];
 }
 ?>
-<div class="container-fluid px-4">
-    <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">MCQ Question Management</h1>
-        <a href="add.php" class="d-none d-sm-inline-block btn btn-primary shadow-sm">
-            <i class="fas fa-plus fa-sm text-white-50"></i> Add New Batch
-        </a>
-    </div>
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0" style="font-size:1.4rem; font-weight:700;">MCQ Question Management</h1>
+    <a href="add.php" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> Add New Batch
+    </a>
+</div>
 
-    <!-- Statistics Cards -->
+<!-- Statistics Cards -->
     <div class="row">
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-left-primary shadow h-100 py-2">
@@ -119,7 +117,7 @@ while ($row = $difficulties_result->fetch_assoc()) {
                             <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['total_questions']; ?></div>
                         </div>
                         <div class="col-auto">
-                            <i class="fas fa-question-circle fa-2x text-gray-300"></i>
+                            <i class="bi bi-question-circle-fill fs-2 text-primary" style="opacity:0.2;"></i>
                         </div>
                     </div>
                 </div>
@@ -135,7 +133,7 @@ while ($row = $difficulties_result->fetch_assoc()) {
                             <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['total_categories']; ?></div>
                         </div>
                         <div class="col-auto">
-                            <i class="fas fa-tags fa-2x text-gray-300"></i>
+                            <i class="bi bi-tags-fill fs-2 text-success" style="opacity:0.2;"></i>
                         </div>
                     </div>
                 </div>
@@ -151,7 +149,7 @@ while ($row = $difficulties_result->fetch_assoc()) {
                             <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['total_instructors']; ?></div>
                         </div>
                         <div class="col-auto">
-                            <i class="fas fa-chalkboard-teacher fa-2x text-gray-300"></i>
+                            <i class="bi bi-person-badge-fill fs-2 text-info" style="opacity:0.2;"></i>
                         </div>
                     </div>
                 </div>
@@ -167,7 +165,7 @@ while ($row = $difficulties_result->fetch_assoc()) {
                             <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['total_test_types']; ?></div>
                         </div>
                         <div class="col-auto">
-                            <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
+                            <i class="bi bi-clipboard-check-fill fs-2 text-warning" style="opacity:0.2;"></i>
                         </div>
                     </div>
                 </div>
@@ -175,19 +173,11 @@ while ($row = $difficulties_result->fetch_assoc()) {
         </div>
     </div>
 
-    <!-- Filters Card -->
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">Filters</h6>
-            <div class="dropdown no-arrow">
-                <a class="dropdown-toggle" href="#" role="button" id="filterDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <i class="fas fa-filter fa-sm fa-fw text-gray-400"></i>
-                </a>
-                <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="filterDropdown">
-                    <div class="dropdown-header">Filter Options:</div>
-                    <a class="dropdown-item" href="list.php">Clear All Filters</a>
-                </div>
-            </div>
+<!-- Filters Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <h6><i class="bi bi-funnel me-2"></i>Filter Questions</h6>
+            <a href="list.php" class="btn btn-sm btn-outline-secondary">Clear Filters</a>
         </div>
         <div class="card-body">
             <form method="get" action="list.php">
@@ -226,12 +216,12 @@ while ($row = $difficulties_result->fetch_assoc()) {
                         </select>
                     </div>
                 </div>
-                <div class="d-flex justify-content-end">
+                <div class="d-flex justify-content-end gap-2">
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-search fa-sm"></i> Apply Filters
+                        <i class="bi bi-search me-1"></i> Apply Filters
                     </button>
-                    <a href="list.php" class="btn btn-secondary ml-2">
-                        <i class="fas fa-redo fa-sm"></i> Reset
+                    <a href="list.php" class="btn btn-secondary">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
                     </a>
                 </div>
             </form>
@@ -249,11 +239,11 @@ while ($row = $difficulties_result->fetch_assoc()) {
         <div class="card-body">
             <?php if (empty($batches)): ?>
                 <div class="text-center py-5">
-                    <i class="fas fa-inbox fa-3x text-gray-300 mb-3"></i>
-                    <h5 class="text-gray-500">No question batches found</h5>
-                    <p class="text-gray-400">Click "Add New Batch" to create one.</p>
+                    <i class="bi bi-inbox fs-1 text-muted mb-3 d-block"></i>
+                    <h5 class="text-muted">No question batches found</h5>
+                    <p class="text-muted small">Click "Add New Batch" to create one.</p>
                     <a href="add.php" class="btn btn-primary mt-2">
-                        <i class="fas fa-plus fa-sm"></i> Add New Batch
+                        <i class="bi bi-plus-lg me-1"></i> Add New Batch
                     </a>
                 </div>
             <?php else: ?>
@@ -271,15 +261,12 @@ while ($row = $difficulties_result->fetch_assoc()) {
                                         <span class="badge bg-success"><?php echo $batch['question_count']; ?> Questions</span>
                                     </div>
                                     <div class="batch-actions">
-                                        <a href="edit_batch.php?test_type=<?php echo urlencode($batch['test_type']); ?>&category=<?php echo urlencode($batch['category']); ?>&difficulty_level=<?php echo urlencode($batch['difficulty_level']); ?>&instructor_id=<?php echo $batch['instructor_id']; ?>" class="btn btn-sm btn-outline-primary me-1">
-                                            <i class="fas fa-edit"></i> Edit Batch
-                                        </a>
                                         <button type="button" class="btn btn-sm btn-outline-success add-question-btn me-1" 
                                             data-test-type="<?php echo $batch['test_type']; ?>"
                                             data-category="<?php echo $batch['category']; ?>"
                                             data-difficulty-level="<?php echo $batch['difficulty_level']; ?>"
                                             data-instructor-id="<?php echo $batch['instructor_id']; ?>">
-                                            <i class="fas fa-plus"></i> Add Question
+                                            <i class="bi bi-plus-lg"></i> Add Question
                                         </button>
                                         <form method="post" action="list.php" style="display: inline;">
                                             <input type="hidden" name="action" value="delete_batch">
@@ -325,11 +312,11 @@ while ($row = $difficulties_result->fetch_assoc()) {
                                                 <td><?php echo $question['time_limit']; ?>s</td>
                                                 <td>
                                                     <div class="btn-group" role="group">
-                                                        <a href='edit.php?id=<?php echo $question['id']; ?>' class='btn btn-sm btn-outline-primary' title="Edit Question">
-                                                            <i class='fas fa-edit'></i>
+                                                        <a href='edit.php?id=<?php echo $question["id"]; ?>' class='btn btn-sm btn-outline-primary' title="Edit Question">
+                                                            <i class='bi bi-pencil-fill'></i>
                                                         </a>
-                                                        <a href='list.php?delete=<?php echo $question['id']; ?>' class='btn btn-sm btn-outline-danger' title="Delete Question" onclick='return confirm("Are you sure you want to delete this question?")'>
-                                                            <i class='fas fa-trash'></i>
+                                                        <a href='list.php?delete=<?php echo $question["id"]; ?>' class='btn btn-sm btn-outline-danger' title="Delete Question" onclick='return confirm("Are you sure you want to delete this question?")'>
+                                                            <i class='bi bi-trash-fill'></i>
                                                         </a>
                                                     </div>
                                                 </td>
@@ -412,7 +399,7 @@ while ($row = $difficulties_result->fetch_assoc()) {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="saveQuestionBtn">
-                    <i class="fas fa-save fa-sm"></i> Save Question
+                    <i class="bi bi-save me-1"></i> Save Question
                 </button>
             </div>
         </div>
@@ -468,5 +455,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
+</div><!-- end col-md-10 content -->
+</div><!-- end row -->
+</div><!-- end container-fluid -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

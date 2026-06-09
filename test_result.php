@@ -2,1090 +2,599 @@
 session_start();
 require_once 'forms/db.php';
 
-// Check if user is logged in
+// Auth guard
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
     header('Location: forms/login.php');
     exit();
 }
 
-// Get user ID from session
 $user_id = $_SESSION["id"];
+$st_res = mysqli_query($conn, "SELECT id FROM students WHERE user_id = $user_id");
+$student = mysqli_fetch_assoc($st_res);
+if (!$student) { header('Location: forms/login.php'); exit(); }
+$student_id = $student['id'];
 
-// Check if test session exists
-if (!isset($_SESSION['test'])) {
-    header('Location: test.php');
+$attempt_id = isset($_GET['attempt_id']) ? intval($_GET['attempt_id']) : 0;
+if ($attempt_id <= 0) {
+    header("Location: test.php");
     exit();
 }
 
-// Remove the student from waiting_students if still there
-if (isset($_SESSION['student_name'])) {
-    $session_id = session_id();
-    try {
-        $delete_query = "DELETE FROM waiting_students WHERE session_id = ?";
-        $stmt = $conn->prepare($delete_query);
-        $stmt->bind_param("s", $session_id);
-        $stmt->execute();
-        $stmt->close();
-    } catch (Exception $e) {
-        // Log error but don't interrupt the flow
-        error_log("Error removing from waiting_students: " . $e->getMessage());
+// Fetch attempt details
+$att_stmt = $conn->prepare("SELECT sa.*, t.title as test_title, t.passing_marks, t.certificate_enabled, t.share_token, t.lobby_privacy, t.allow_review
+                           FROM student_attempts sa
+                           JOIN tests t ON sa.test_id = t.id
+                           WHERE sa.id = ? AND sa.student_id = ?");
+$att_stmt->bind_param("ii", $attempt_id, $student_id);
+$att_stmt->execute();
+$attempt = $att_stmt->get_result()->fetch_assoc();
+$att_stmt->close();
+
+if (!$attempt) {
+    header("Location: test.php");
+    exit();
+}
+
+$test_id = $attempt['test_id'];
+
+// Check if there are unchecked manual grading questions
+$manual_check_res = mysqli_query($conn, "SELECT COUNT(*) FROM student_answers sa 
+                                        JOIN questions q ON sa.question_id = q.id 
+                                        WHERE sa.attempt_id = $attempt_id 
+                                        AND q.question_type IN ('SHORT_ANSWER', 'LONG_ANSWER') 
+                                        AND sa.checked_by_admin = 0");
+$pending_manual_grading = mysqli_fetch_row($manual_check_res)[0] > 0;
+
+// Fetch results details
+$results_res = mysqli_query($conn, "SELECT * FROM results WHERE attempt_id = $attempt_id");
+$result = mysqli_fetch_assoc($results_res);
+
+$rank = 0;
+$certificate = null;
+
+if ($result) {
+    // Calculate student rank
+    $rank_query = "SELECT COUNT(DISTINCT student_id) as higher_scores FROM results 
+                   WHERE test_id = $test_id AND score > (SELECT score FROM results WHERE attempt_id = $attempt_id)";
+    $rank_res = mysqli_query($conn, $rank_query);
+    $rank = 1;
+    if ($rank_row = mysqli_fetch_assoc($rank_res)) {
+        $rank += $rank_row['higher_scores'];
+    }
+    
+    // Fetch certificate if generated
+    $cert_res = mysqli_query($conn, "SELECT * FROM certificates WHERE result_id = {$result['id']}");
+    $certificate = mysqli_fetch_assoc($cert_res);
+}
+
+// Format time taken (e.g. 08:25)
+$time_taken_seconds = $result ? $result['time_taken_seconds'] : 0;
+$time_formatted = sprintf('%02d:%02d', floor($time_taken_seconds / 60), $time_taken_seconds % 60);
+
+// Fetch badges for this attempt
+$badges = [];
+$badges_res = mysqli_query($conn, "SELECT * FROM student_badges WHERE student_id = $student_id AND test_id = $test_id");
+if ($badges_res) {
+    while ($b = mysqli_fetch_assoc($badges_res)) {
+        $badges[] = $b;
     }
 }
 
-// Get test data
-$test = $_SESSION['test'];
-$questions = $test['questions'];
-$answers = isset($test['answers']) ? $test['answers'] : [];
-$total_questions = count($questions);
+// Fetch top performer details
+$top_performer = null;
+$top_query = "SELECT r.score, r.time_taken_seconds, s.id as student_id, u.username, s.name as full_name
 
-// Calculate score
-$correct_answers = 0;
-foreach ($questions as $question) {
-    if (isset($answers[$question['id']]) && $answers[$question['id']] === $question['correct_answer']) {
-        $correct_answers++;
+
+
+
+
+              FROM results r
+              JOIN students s ON r.student_id = s.id
+              JOIN users u ON s.user_id = u.id
+              WHERE r.test_id = $test_id
+              ORDER BY r.score DESC, r.time_taken_seconds ASC LIMIT 1";
+$top_res = mysqli_query($conn, $top_query);
+if ($top_res) {
+    $top_performer = mysqli_fetch_assoc($top_res);
+}
+
+// Subject Analytics
+$subject_analytics = [];
+$sub_query = "SELECT q.subject_id, sub.name as subject_name,
+                     COUNT(sa.id) as total_questions,
+                     SUM(CASE WHEN sa.is_correct = 1 THEN 1 ELSE 0 END) as correct_questions,
+                     SUM(q.points) as total_points,
+                     SUM(CASE WHEN sa.is_correct = 1 THEN sa.points_awarded ELSE 0 END) as scored_points
+              FROM student_answers sa
+              JOIN questions q ON sa.question_id = q.id
+              JOIN subjects sub ON q.subject_id = sub.id
+              WHERE sa.attempt_id = $attempt_id
+              GROUP BY q.subject_id, sub.name";
+$sub_res = mysqli_query($conn, $sub_query);
+if ($sub_res) {
+    while ($row = mysqli_fetch_assoc($sub_res)) {
+        $subject_analytics[] = $row;
     }
 }
-$score = $total_questions > 0 ? round(($correct_answers / $total_questions) * 100) : 0;
-$passing_score = 70; // 70% to pass
-$is_passed = $score >= $passing_score;
 
-// Get student name from test session
-$student_name = isset($test['student_name']) ? $test['student_name'] : $_SESSION['user']['name'];
-$test_name = isset($test['test_name']) ? $test['test_name'] : 'Test in ' . $test['category'];
-$category = $test['category'];
+// Load questions and answers if review allowed
+$questions = [];
+$options_by_question = [];
+if ($attempt['allow_review'] == 1) {
+    $q_stmt = $conn->prepare("SELECT q.*, sa.selected_option_ids, sa.text_answer, sa.is_correct, sa.points_awarded, sa.checked_by_admin
+                              FROM test_questions tq
+                              JOIN questions q ON tq.question_id = q.id
+                              LEFT JOIN student_answers sa ON sa.question_id = q.id AND sa.attempt_id = ?
+                              WHERE tq.test_id = ?
+                              ORDER BY tq.sort_order ASC, q.id ASC");
+    $q_stmt->bind_param("ii", $attempt_id, $test_id);
+    $q_stmt->execute();
+    $q_res = $q_stmt->get_result();
+    while ($row = $q_res->fetch_assoc()) {
+        $questions[] = $row;
+    }
+    $q_stmt->close();
 
-// Convert answers array to JSON for storage
-$answers_json = json_encode($answers);
-
-// Check if test result already exists in session (from take_test.php submission)
-if (isset($_SESSION['test_result_id'])) {
-    $test_result_id = $_SESSION['test_result_id'];
-    unset($_SESSION['test_result_id']);
-} else {
-    // Save test result to database
-    try {
-        $insert_query = "INSERT INTO test_results (
-            user_id, 
-            student_name, 
-            student_id, 
-            test_id, 
-            test_name, 
-            category, 
-            total_questions, 
-            correct_answers, 
-            score, 
-            is_passed, 
-            answers, 
-            test_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-        
-        $stmt = $conn->prepare($insert_query);
-        $student_id_value = isset($test['student_id']) ? $test['student_id'] : '';
-        $test_id_value = 0; // We don't have a specific test ID, using 0 as placeholder
-        
-        $stmt->bind_param(
-            "isisiiiiiis", 
-            $user_id, 
-            $student_name, 
-            $student_id_value, 
-            $test_id_value, 
-            $test_name, 
-            $category, 
-            $total_questions, 
-            $correct_answers, 
-            $score, 
-            $is_passed, 
-            $answers_json
-        );
-        
-        $stmt->execute();
-        $test_result_id = $stmt->insert_id;
-        $stmt->close();
-        
-        // Update user_tests table with completion status
-        if (isset($test['user_test_id'])) {
-            $status = $is_passed ? 'Completed' : 'Failed';
-            $update_query = "UPDATE user_tests SET status = ?, last_accessed = NOW() WHERE id = ?";
-            $stmt = $conn->prepare($update_query);
-            $stmt->bind_param("si", $status, $test['user_test_id']);
-            $stmt->execute();
-            $stmt->close();
+    if (!empty($questions)) {
+        $q_ids = array_map(function($q) { return $q['id']; }, $questions);
+        $q_ids_str = implode(",", $q_ids);
+        if (!empty($q_ids_str)) {
+            $opt_res = mysqli_query($conn, "SELECT * FROM question_options WHERE question_id IN ($q_ids_str) ORDER BY id ASC");
+            if ($opt_res) {
+                while ($o = mysqli_fetch_assoc($opt_res)) {
+                    $options_by_question[$o['question_id']][] = $o;
+                }
+            }
         }
-        
-        // Generate certificate if test is passed
-        if ($is_passed) {
-            $certificate_url = "certificates/certificate_{$test_result_id}.pdf";
-            $insert_cert_query = "INSERT INTO certificates (test_result_id, certificate_url) VALUES (?, ?)";
-            $stmt = $conn->prepare($insert_cert_query);
-            $stmt->bind_param("is", $test_result_id, $certificate_url);
-            $stmt->execute();
-            $stmt->close();
-            
-            // Update test_results to mark certificate as generated
-            $update_query = "UPDATE test_results SET certificate_generated = 1 WHERE id = ?";
-            $stmt = $conn->prepare($update_query);
-            $stmt->bind_param("i", $test_result_id);
-            $stmt->execute();
-            $stmt->close();
-        }
-    } catch (Exception $e) {
-        // Log error but don't interrupt the flow
-        error_log("Error saving test result: " . $e->getMessage());
-        $test_result_id = null;
     }
 }
 
-// Clear test session
-unset($_SESSION['test']);
-unset($_SESSION['secure_environment_shown']);
-unset($_SESSION['question_start_time']);
+$pageTitle = "Assessment Results";
+include "includes/header.php";
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test Result - KAcademyX</title>
-  <meta name="description" content="Test results at KAcademyX">
-  <meta name="keywords" content="KAcademyX, test results, MCQ">
-  
-  <!-- Favicons -->
-  <link href="assets/img/favicon.png" rel="icon">
-  <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
-  
-  <!-- Fonts -->
-  <link href="https://fonts.googleapis.com" rel="preconnect">
-  <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Montserrat:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-  
-  <!-- Vendor CSS Files -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
-  
-  <!-- Main CSS File -->
-  <style>
-    :root {
-      --primary-color: #4154f1;
-      --secondary-color: #7b68ee;
-      --accent-color: #00d2ff;
-      --dark-color: #0f172a;
-      --light-color: #f8fafc;
-      --success-color: #2ecc71;
-      --danger-color: #e74c3c;
-      --warning-color: #f39c12;
-      --info-color: #3498db;
-    }
-    
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
-    body {
-      font-family: 'Poppins', sans-serif;
-      color: var(--dark-color);
-      background: linear-gradient(135deg, #f8fafc 0%, #e6f7ff 100%);
-      line-height: 1.6;
-      min-height: 100vh;
-      padding: 20px 0;
-    }
-    
-    h1, h2, h3, h4, h5, h6 {
-      font-family: 'Montserrat', sans-serif;
-      font-weight: 700;
-    }
-    
-    /* Result Container */
-    .result-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    
-    /* Result Header */
-    .result-header {
-      background: white;
-      border-radius: 20px;
-      padding: 40px;
-      margin-bottom: 30px;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-    
-    .result-header::before {
-      content: "";
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 5px;
-      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-    }
-    
-    .result-title {
-      font-size: 2.8rem;
-      margin-bottom: 20px;
-      color: var(--dark-color);
-      position: relative;
-      display: inline-block;
-    }
-    
-    .result-title::after {
-      content: "";
-      position: absolute;
-      bottom: -10px;
-      left: 25%;
-      width: 50%;
-      height: 4px;
-      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-      border-radius: 2px;
-    }
-    
-    .test-category {
-      display: inline-block;
-      padding: 8px 20px;
-      background: rgba(65, 84, 241, 0.1);
-      color: var(--primary-color);
-      border-radius: 50px;
-      font-weight: 600;
-      margin-bottom: 30px;
-    }
-    
-    .score-display {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 30px;
-      flex-wrap: wrap;
-      gap: 40px;
-    }
-    
-    .score-circle-container {
-      position: relative;
-    }
-    
-    .score-circle {
-      width: 180px;
-      height: 180px;
-      border-radius: 50%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      position: relative;
-      background: conic-gradient(var(--primary-color) 0%, var(--primary-color) <?php echo $score; ?>%, #e2e8f0 <?php echo $score; ?>%, #e2e8f0 100%);
-      box-shadow: 0 10px 25px rgba(65, 84, 241, 0.2);
-      animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.03); }
-      100% { transform: scale(1); }
-    }
-    
-    .score-inner {
-      width: 160px;
-      height: 160px;
-      border-radius: 50%;
-      background: white;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      position: relative;
-    }
-    
-    .score-value {
-      font-size: 3rem;
-      font-weight: 800;
-      background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    
-    .score-label {
-      font-size: 1rem;
-      color: #64748b;
-      font-weight: 600;
-      margin-top: 5px;
-    }
-    
-    .score-details {
-      text-align: left;
-    }
-    
-    .score-text {
-      font-size: 1.8rem;
-      margin-bottom: 15px;
-      font-weight: 700;
-      color: var(--dark-color);
-    }
-    
-    .score-message {
-      font-size: 1.2rem;
-      color: #64748b;
-      max-width: 400px;
-      line-height: 1.6;
-    }
-    
-    .result-badge {
-      display: inline-block;
-      padding: 10px 25px;
-      border-radius: 50px;
-      font-weight: 600;
-      margin-top: 20px;
-      font-size: 1.1rem;
-      background: <?php echo $is_passed ? 'rgba(46, 204, 113, 0.1)' : 'rgba(231, 76, 60, 0.1)'; ?>;
-      color: <?php echo $is_passed ? 'var(--success-color)' : 'var(--danger-color)'; ?>;
-      border: 1px solid <?php echo $is_passed ? 'var(--success-color)' : 'var(--danger-color)'; ?>;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-    }
-    
-    /* Performance Summary */
-    .performance-summary {
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-      margin: 30px 0;
-      flex-wrap: wrap;
-    }
-    
-    .performance-item {
-      background: white;
-      padding: 25px;
-      border-radius: 15px;
-      text-align: center;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-      flex: 1;
-      min-width: 180px;
-      transition: all 0.3s ease;
-    }
-    
-    .performance-item:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    }
-    
-    .performance-icon {
-      font-size: 2rem;
-      margin-bottom: 15px;
-      color: var(--primary-color);
-    }
-    
-    .performance-value {
-      font-size: 2.5rem;
-      font-weight: 700;
-      color: var(--primary-color);
-      margin-bottom: 5px;
-    }
-    
-    .performance-label {
-      font-size: 1rem;
-      color: #64748b;
-      font-weight: 500;
-    }
-    
-    /* Certificate Section */
-    .certificate-section {
-      background: white;
-      border-radius: 20px;
-      padding: 40px;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-      margin-bottom: 30px;
-      text-align: center;
-    }
-    
-    .certificate-preview {
-      max-width: 800px;
-      margin: 0 auto;
-      border: 2px dashed #e2e8f0;
-      border-radius: 15px;
-      padding: 30px;
-      background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
-    }
-    
-    .certificate-title {
-      font-size: 2rem;
-      font-weight: 700;
-      color: var(--dark-color);
-      margin-bottom: 20px;
-    }
-    
-    .certificate-subtitle {
-      font-size: 1.2rem;
-      color: #64748b;
-      margin-bottom: 30px;
-    }
-    
-    .certificate-badge {
-      width: 120px;
-      height: 120px;
-      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-      border-radius: 50%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin: 0 auto 30px;
-      box-shadow: 0 10px 25px rgba(65, 84, 241, 0.3);
-    }
-    
-    .certificate-badge i {
-      font-size: 3rem;
-      color: white;
-    }
-    
-    .certificate-text {
-      font-size: 1.1rem;
-      color: #64748b;
-      margin-bottom: 30px;
-      line-height: 1.6;
-    }
-    
-    /* Questions Review */
-    .questions-review {
-      background: white;
-      border-radius: 20px;
-      padding: 40px;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-      margin-bottom: 30px;
-    }
-    
-    .section-title {
-      font-size: 2rem;
-      margin-bottom: 30px;
-      color: var(--dark-color);
-      display: flex;
-      align-items: center;
-      position: relative;
-    }
-    
-    .section-title i {
-      margin-right: 15px;
-      color: var(--primary-color);
-      font-size: 1.8rem;
-    }
-    
-    .section-title::after {
-      content: "";
-      position: absolute;
-      bottom: -10px;
-      left: 0;
-      width: 80px;
-      height: 3px;
-      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-      border-radius: 2px;
-    }
-    
-    .question-card {
-      border: 1px solid #e2e8f0;
-      border-radius: 15px;
-      padding: 25px;
-      margin-bottom: 25px;
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-    }
-    
-    .question-card::before {
-      content: "";
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 5px;
-      height: 100%;
-      background: <?php echo $is_passed ? 'var(--success-color)' : 'var(--danger-color)'; ?>;
-      opacity: 0.7;
-    }
-    
-    .question-card:hover {
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-      transform: translateY(-3px);
-    }
-    
-    .question-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    
-    .question-number {
-      background: var(--primary-color);
-      color: white;
-      width: 35px;
-      height: 35px;
-      border-radius: 50%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-weight: 600;
-      font-size: 1rem;
-      box-shadow: 0 5px 10px rgba(65, 84, 241, 0.3);
-    }
-    
-    .question-status {
-      font-weight: 600;
-      padding: 8px 20px;
-      border-radius: 50px;
-      font-size: 0.9rem;
-      display: flex;
-      align-items: center;
-    }
-    
-    .question-status i {
-      margin-right: 5px;
-    }
-    
-    .status-correct {
-      background: rgba(46, 204, 113, 0.1);
-      color: var(--success-color);
-    }
-    
-    .status-incorrect {
-      background: rgba(231, 76, 60, 0.1);
-      color: var(--danger-color);
-    }
-    
-    .status-unanswered {
-      background: rgba(243, 156, 18, 0.1);
-      color: var(--warning-color);
-    }
-    
-    .question-text {
-      font-size: 1.2rem;
-      font-weight: 600;
-      margin-bottom: 25px;
-      color: var(--dark-color);
-      line-height: 1.5;
-    }
-    
-    .options-list {
-      margin-bottom: 25px;
-    }
-    
-    .option-item {
-      padding: 15px 20px;
-      border-radius: 12px;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      transition: all 0.2s ease;
-    }
-    
-    .option-marker {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-weight: 600;
-      margin-right: 15px;
-      flex-shrink: 0;
-    }
-    
-    .option-text {
-      flex-grow: 1;
-      font-size: 1.05rem;
-    }
-    
-    .option-default {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-    }
-    
-    .option-user {
-      background: rgba(65, 84, 241, 0.05);
-      border: 1px solid var(--primary-color);
-    }
-    
-    .option-correct {
-      background: rgba(46, 204, 113, 0.05);
-      border: 1px solid var(--success-color);
-    }
-    
-    .option-incorrect {
-      background: rgba(231, 76, 60, 0.05);
-      border: 1px solid var(--danger-color);
-    }
-    
-    .marker-default {
-      background: #e2e8f0;
-      color: var(--dark-color);
-    }
-    
-    .marker-user {
-      background: var(--primary-color);
-      color: white;
-    }
-    
-    .marker-correct {
-      background: var(--success-color);
-      color: white;
-    }
-    
-    .marker-incorrect {
-      background: var(--danger-color);
-      color: white;
-    }
-    
-    .answer-feedback {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-top: 20px;
-      border-top: 1px solid #e2e8f0;
-      margin-top: 15px;
-      flex-wrap: wrap;
-      gap: 15px;
-    }
-    
-    .user-answer, .correct-answer {
-      display: flex;
-      align-items: center;
-      background: #f8fafc;
-      padding: 12px 15px;
-      border-radius: 10px;
-      flex: 1;
-      min-width: 250px;
-    }
-    
-    .answer-label {
-      font-weight: 600;
-      margin-right: 10px;
-      color: #64748b;
-      white-space: nowrap;
-    }
-    
-    .answer-value {
-      font-weight: 600;
-    }
-    
-    .user-answer {
-      border-left: 4px solid var(--primary-color);
-    }
-    
-    .user-answer .answer-value {
-      color: var(--primary-color);
-    }
-    
-    .correct-answer {
-      border-left: 4px solid var(--success-color);
-    }
-    
-    .correct-answer .answer-value {
-      color: var(--success-color);
-    }
-    
-    .explanation {
-      margin-top: 20px;
-      padding: 20px;
-      background: #f8fafc;
-      border-radius: 12px;
-      border-left: 4px solid var(--info-color);
-    }
-    
-    .explanation-title {
-      font-weight: 600;
-      margin-bottom: 10px;
-      color: var(--dark-color);
-      display: flex;
-      align-items: center;
-    }
-    
-    .explanation-title i {
-      margin-right: 10px;
-      color: var(--info-color);
-    }
-    
-    /* Action Buttons */
-    .action-buttons {
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-      margin-top: 40px;
-      flex-wrap: wrap;
-    }
-    
-    .btn-action {
-      padding: 15px 35px;
-      border-radius: 50px;
-      font-weight: 600;
-      font-size: 1.1rem;
-      transition: all 0.3s ease;
-      border: none;
-      cursor: pointer;
-      font-family: 'Poppins', sans-serif;
-      display: flex;
-      align-items: center;
-      text-decoration: none;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-    }
-    
-    .btn-action i {
-      margin-right: 10px;
-      font-size: 1.2rem;
-    }
-    
-    .btn-primary {
-      background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
-      color: white;
-    }
-    
-    .btn-primary:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 25px rgba(65, 84, 241, 0.3);
-      color: white;
-    }
-    
-    .btn-secondary {
-      background: white;
-      color: var(--dark-color);
-      border: 1px solid #e2e8f0;
-    }
-    
-    .btn-secondary:hover {
-      background: #f8fafc;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-      color: var(--dark-color);
-    }
-    
-    .btn-success {
-      background: var(--success-color);
-      color: white;
-    }
-    
-    .btn-success:hover {
-      background: #27ae60;
-      color: white;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(46, 204, 113, 0.3);
-    }
-    
-    /* Responsive Design */
-    @media (max-width: 767.98px) {
-      .result-title {
-        font-size: 2rem;
-      }
-      
-      .score-display {
-        flex-direction: column;
-        align-items: center;
-      }
-      
-      .score-details {
-        text-align: center;
-      }
-      
-      .score-circle {
-        width: 150px;
-        height: 150px;
-      }
-      
-      .score-inner {
-        width: 130px;
-        height: 130px;
-      }
-      
-      .score-value {
-        font-size: 2.5rem;
-      }
-      
-      .question-header {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-      
-      .question-status {
-        margin-top: 10px;
-      }
-      
-      .answer-feedback {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-      
-      .correct-answer {
-        margin-top: 10px;
-      }
-      
-      .performance-summary {
-        flex-direction: column;
-      }
-      
-      .action-buttons {
-        flex-direction: column;
-        align-items: center;
-      }
-      
-      .btn-action {
-        width: 100%;
-        justify-content: center;
-      }
-    }
-    
-    /* Print Styles */
-    @media print {
-      body {
-        background: white;
-        padding: 0;
-      }
-      
-      .result-header, .questions-review, .certificate-section {
-        box-shadow: none;
-        border: 1px solid #ddd;
-      }
-      
-      .btn-action {
-        display: none;
-      }
-      
-      .certificate-preview {
-        border: 1px solid #ddd;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="result-container">
-    <!-- Result Header -->
-    <div class="result-header animate__animated animate__fadeIn">
-      <h1 class="result-title">Test Results</h1>
-      <div class="test-category"><?php echo htmlspecialchars($test_name); ?></div>
-      
-      <div class="score-display">
-        <div class="score-circle-container">
-          <div class="score-circle">
-            <div class="score-inner">
-              <div class="score-value">0%</div>
-              <div class="score-label">SCORE</div>
+<div style="height: 100px;"></div>
+
+<main class="container py-4">
+    <div class="row justify-content-center" data-aos="fade-up">
+        <div class="col-lg-8 col-md-10">
+            <div class="card border-0 shadow-lg bg-white overflow-hidden rounded-4">
+                <div class="card-header bg-gradient-indigo text-white p-4 text-center">
+                    <span class="badge bg-light text-primary mb-2 fw-bold text-uppercase">Assessment Feedback</span>
+                    <h2 class="fw-bold mb-1"><?php echo htmlspecialchars($attempt['test_title']); ?></h2>
+                    <p class="mb-0 text-light opacity-75">Date: <?php echo date('d M Y h:i A', strtotime($attempt['completed_at'] ?: $attempt['started_at'])); ?></p>
+                </div>
+                
+                <div class="card-body p-4">
+                    <?php if ($pending_manual_grading): ?>
+                        <!-- Grading Pending Notice -->
+                        <div class="text-center py-4">
+                            <i class="bi bi-clock-history fs-1 text-warning d-block mb-3"></i>
+                            <h4 class="fw-bold text-dark">Grading in Progress</h4>
+                            <p class="text-muted col-md-10 mx-auto">This assessment includes short/long answer questions. Your final score, ranks, and certificates will be available here once the instructor grades your answers.</p>
+                            <div class="mt-4">
+                                <a href="test.php" class="btn btn-primary px-4 fw-bold">Back to Dashboard</a>
+                            </div>
+                        </div>
+                    <?php elseif (!$result): ?>
+                        <!-- Error State -->
+                        <div class="alert alert-danger text-center">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i> Results have not been calculated yet. Please contact support.
+                        </div>
+                    <?php else: ?>
+                        <!-- Score Display -->
+                        <div class="text-center mb-5">
+                            <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-light border border-4 border-white shadow-sm mb-3" style="width: 130px; height: 130px;">
+                                <div class="text-center">
+                                    <h1 class="fw-bold mb-0 text-indigo"><?php echo $result['score']; ?></h1>
+                                    <small class="text-muted">/ <?php echo $result['total_questions']; ?> Pts</small>
+                                </div>
+                            </div>
+                            
+                            <h3 class="fw-bold mb-1 <?php echo $result['is_passed'] ? 'text-success' : 'text-danger'; ?>">
+                                <?php echo $result['is_passed'] ? '<i class="bi bi-check-circle-fill me-1"></i> Passed' : '<i class="bi bi-x-circle-fill me-1"></i> Failed'; ?>
+                            </h3>
+                            <p class="text-muted mb-0">Passing Grade Required: <strong><?php echo $attempt['passing_marks']; ?>%</strong></p>
+                        </div>
+
+                        <!-- Statistics Grid -->
+                        <div class="row text-center mb-5 g-3">
+                            <div class="col-md-3 col-6">
+                                <div class="p-3 bg-light rounded-3">
+                                    <span class="d-block small text-muted text-uppercase fw-semibold mb-1">Percentage</span>
+                                    <h4 class="fw-bold mb-0 text-dark"><?php echo $result['percentage']; ?>%</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="p-3 bg-light rounded-3">
+                                    <span class="d-block small text-muted text-uppercase fw-semibold mb-1">Rank Position</span>
+                                    <h4 class="fw-bold mb-0 text-indigo">#<?php echo $rank; ?></h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="p-3 bg-light rounded-3">
+                                    <span class="d-block small text-muted text-uppercase fw-semibold mb-1">Time Taken</span>
+                                    <h4 class="fw-bold mb-0 text-dark"><?php echo $time_formatted; ?></h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="p-3 bg-light rounded-3">
+                                    <span class="d-block small text-muted text-uppercase fw-semibold mb-1">Accuracy</span>
+                                    <h4 class="fw-bold mb-0 text-success"><?php echo $result['total_questions'] > 0 ? round(($result['correct_answers'] / $result['total_questions']) * 100, 1) : 0; ?>%</h4>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Question Counters -->
+                        <div class="card bg-light border-0 mb-5 rounded-4">
+                            <div class="card-body p-4">
+                                <h6 class="fw-bold mb-3"><i class="bi bi-pie-chart-fill me-2 text-primary"></i>Response Analytics</h6>
+                                <div class="row align-items-center">
+                                    <div class="col-md-6 mb-3 mb-md-0">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Correct Answers:</span>
+                                            <strong class="text-success"><?php echo $result['correct_answers']; ?></strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Incorrect Answers:</span>
+                                            <strong class="text-danger"><?php echo $result['wrong_answers']; ?></strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>Skipped Questions:</span>
+                                            <strong class="text-muted"><?php echo $result['skipped_questions']; ?></strong>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <!-- Custom visualization using standard bootstrap classes -->
+                                        <div class="progress" style="height: 20px;">
+                                            <?php 
+                                            $corr_pct = $result['total_questions'] > 0 ? ($result['correct_answers'] / $result['total_questions']) * 100 : 0;
+                                            $wrong_pct = $result['total_questions'] > 0 ? ($result['wrong_answers'] / $result['total_questions']) * 100 : 0;
+                                            $skip_pct = $result['total_questions'] > 0 ? ($result['skipped_questions'] / $result['total_questions']) * 100 : 0;
+                                            ?>
+                                            <div class="progress-bar bg-success" style="width: <?php echo $corr_pct; ?>%"><?php echo $result['correct_answers']; ?></div>
+                                            <div class="progress-bar bg-danger" style="width: <?php echo $wrong_pct; ?>%"><?php echo $result['wrong_answers']; ?></div>
+                                            <div class="progress-bar bg-secondary opacity-50" style="width: <?php echo $skip_pct; ?>%"><?php echo $result['skipped_questions']; ?></div>
+                                        </div>
+                                        <div class="d-flex justify-content-between small text-muted mt-2">
+                                            <span>Correct (Green)</span>
+                                            <span>Incorrect (Red)</span>
+                                            <span>Skipped (Gray)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Items: Certificate & Leaderboard -->
+                        <div class="d-flex flex-column gap-3">
+                            <?php if ($certificate): ?>
+                                <a href="certificate.php?code=<?php echo $certificate['verification_code']; ?>" class="btn btn-success btn-lg w-100 fw-bold py-3 rounded-3 shadow-sm">
+                                    <i class="bi bi-award me-1"></i> Download PDF Certificate
+                                </a>
+                            <?php endif; ?>
+                            
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <a href="test.php" class="btn btn-outline-primary btn-lg w-100 fw-bold rounded-3">
+                                        Back to Dashboard
+                                    </a>
+                                </div>
+                                <div class="col-sm-6">
+                                    <a href="leaderboard.php?test_id=<?php echo $test_id; ?>" class="btn btn-outline-indigo btn-lg w-100 fw-bold rounded-3">
+                                        View Test Rankings
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
-          </div>
+
+            <?php if (!empty($badges)): ?>
+                <!-- Earned Badges Section -->
+                <div class="card border-0 shadow-lg bg-white rounded-4 mt-4 overflow-hidden">
+                    <div class="card-header bg-gradient-success text-white p-3">
+                        <h5 class="fw-bold mb-0"><i class="bi bi-trophy-fill me-2"></i>Achievements & Badges Unlocked</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            <?php foreach ($badges as $b): ?>
+                                <?php 
+                                $badge_icon = "bi-award";
+                                $badge_color = "text-primary bg-primary-subtle";
+                                switch ($b['badge_type']) {
+                                    case 'top_10':
+                                        $badge_icon = "bi-trophy-fill";
+                                        $badge_color = "text-warning bg-warning-subtle";
+                                        break;
+                                    case 'top_50':
+                                        $badge_icon = "bi-star-fill";
+                                        $badge_color = "text-info bg-info-subtle";
+                                        break;
+                                    case 'top_100':
+                                        $badge_icon = "bi-award-fill";
+                                        $badge_color = "text-secondary bg-secondary-subtle";
+                                        break;
+                                    case 'perfect_score':
+                                        $badge_icon = "bi-gem";
+                                        $badge_color = "text-danger bg-danger-subtle";
+                                        break;
+                                    case 'fastest_finisher':
+                                        $badge_icon = "bi-lightning-charge-fill";
+                                        $badge_color = "text-warning bg-warning-subtle";
+                                        break;
+                                    case 'highest_subject_physics':
+                                    case 'highest_subject_math':
+                                        $badge_icon = "bi-mortarboard-fill";
+                                        $badge_color = "text-success bg-success-subtle";
+                                        break;
+                                }
+                                ?>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center p-3 rounded-3 border bg-light h-100 badge-card transition-all">
+                                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 <?php echo $badge_color; ?>" style="width: 50px; height: 50px; font-size: 1.5rem;">
+                                            <i class="bi <?php echo $badge_icon; ?>"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="fw-bold mb-1 text-dark"><?php echo htmlspecialchars($b['badge_name']); ?></h6>
+                                            <p class="small text-muted mb-0"><?php echo htmlspecialchars($b['description']); ?></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <div class="row mt-4 g-4">
+                <!-- Comparison Mode -->
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-lg bg-white rounded-4 h-100 overflow-hidden">
+                        <div class="card-header bg-gradient-primary text-white p-3">
+                            <h5 class="fw-bold mb-0"><i class="bi bi-people-fill me-2"></i>You vs. Top Performer</h5>
+                        </div>
+                        <div class="card-body p-4 d-flex flex-column justify-content-center">
+                            <?php if ($top_performer): ?>
+                                <?php
+                                $is_top_user = ($top_performer['student_id'] == $student_id);
+                                $top_name = "N/A";
+                                if ($attempt['lobby_privacy'] === 'Anonymous') {
+                                    $top_name = $is_top_user ? "You" : "Student_" . $top_performer['student_id'];
+                                } else {
+                                    $top_name = $is_top_user ? "You" : htmlspecialchars($top_performer['full_name'] ?: $top_performer['username']);
+                                }
+                                $top_time_formatted = sprintf('%02d:%02d', floor($top_performer['time_taken_seconds'] / 60), $top_performer['time_taken_seconds'] % 60);
+                                ?>
+                                <?php if ($is_top_user): ?>
+                                    <div class="text-center py-3">
+                                        <div class="mb-3 text-warning" style="font-size: 3rem;">
+                                            <i class="bi bi-crown-fill animated-crown"></i>
+                                        </div>
+                                        <h5 class="fw-bold text-dark">You are the Top Performer!</h5>
+                                        <p class="text-muted small mb-0">You achieved the highest score with the best time in this exam. Excellent work!</p>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="table-responsive">
+                                        <table class="table table-borderless align-middle mb-0">
+                                            <thead>
+                                                <tr class="text-muted small text-uppercase" style="border-bottom: 1px solid #eee;">
+                                                    <th>Metric</th>
+                                                    <th>You</th>
+                                                    <th>Top Performer</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td class="fw-semibold text-dark"><i class="bi bi-person me-2"></i>Name</td>
+                                                    <td class="text-primary fw-bold">You</td>
+                                                    <td class="text-dark fw-bold"><?php echo $top_name; ?></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold text-dark"><i class="bi bi-award me-2"></i>Score</td>
+                                                    <td class="text-indigo fw-bold"><?php echo $result['score']; ?></td>
+                                                    <td class="text-success fw-bold"><?php echo $top_performer['score']; ?></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold text-dark"><i class="bi bi-clock me-2"></i>Time Taken</td>
+                                                    <td class="text-muted"><?php echo $time_formatted; ?></td>
+                                                    <td class="text-success fw-bold"><?php echo $top_time_formatted; ?></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <p class="text-center text-muted my-4">No other completion data available for comparison.</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Subject-wise breakdown -->
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-lg bg-white rounded-4 h-100 overflow-hidden">
+                        <div class="card-header bg-gradient-dark-blue text-white p-3">
+                            <h5 class="fw-bold mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Subject Analytics</h5>
+                        </div>
+                        <div class="card-body p-4 d-flex flex-column justify-content-center">
+                            <?php if (!empty($subject_analytics)): ?>
+                                <div class="d-flex flex-column gap-3">
+                                    <?php foreach ($subject_analytics as $sub_an): ?>
+                                        <?php 
+                                        $sub_pct = $sub_an['total_points'] > 0 ? round(($sub_an['scored_points'] / $sub_an['total_points']) * 100, 1) : 0;
+                                        $bar_color = "bg-primary";
+                                        if ($sub_pct >= 80) $bar_color = "bg-success";
+                                        elseif ($sub_pct >= 50) $bar_color = "bg-warning";
+                                        else $bar_color = "bg-danger";
+                                        ?>
+                                        <div>
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="fw-semibold text-dark"><?php echo htmlspecialchars($sub_an['subject_name']); ?></span>
+                                                <span class="small text-muted"><?php echo $sub_an['correct_questions']; ?>/<?php echo $sub_an['total_questions']; ?> correct (<?php echo $sub_pct; ?>%)</span>
+                                            </div>
+                                            <div class="progress rounded-pill" style="height: 10px;">
+                                                <div class="progress-bar rounded-pill <?php echo $bar_color; ?>" style="width: <?php echo $sub_pct; ?>%"></div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php else: ?>
+                                <p class="text-center text-muted my-4">No subject performance details available.</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <?php if ($attempt['allow_review'] == 1 && !empty($questions)): ?>
+                <!-- Question Review Section -->
+                <div class="card border-0 shadow-lg bg-white rounded-4 mt-4 overflow-hidden mb-5">
+                    <div class="card-header bg-gradient-indigo text-white p-3">
+                        <h5 class="fw-bold mb-0"><i class="bi bi-patch-question-fill me-2"></i>Detailed Question Review</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="d-flex flex-column gap-4">
+                            <?php foreach ($questions as $idx => $q): ?>
+                                <?php 
+                                $is_correct_status = $q['is_correct'] == 1;
+                                $is_skipped = is_null($q['is_correct']) || ($q['selected_option_ids'] === null && $q['text_answer'] === null) || ($q['selected_option_ids'] === '' && $q['text_answer'] === '');
+                                $card_border = $is_skipped ? 'border-warning' : ($is_correct_status ? 'border-success' : 'border-danger');
+                                $badge_class = $is_skipped ? 'bg-warning text-dark' : ($is_correct_status ? 'bg-success' : 'bg-danger');
+                                $badge_text = $is_skipped ? 'Skipped' : ($is_correct_status ? 'Correct' : 'Incorrect');
+                                ?>
+                                <div class="card border-0 border-start border-4 <?php echo $card_border; ?> bg-light shadow-sm rounded-3 overflow-hidden">
+                                    <div class="card-body p-4">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <span class="badge <?php echo $badge_class; ?> px-3 py-2 fw-bold rounded-2">
+                                                Q<?php echo $idx + 1; ?>: <?php echo $badge_text; ?> (<?php echo $q['points_awarded'] ?? 0; ?>/<?php echo $q['points']; ?> Pts)
+                                            </span>
+                                            <span class="badge bg-secondary opacity-75"><?php echo str_replace('_', ' ', $q['question_type']); ?></span>
+                                        </div>
+                                        
+                                        <h5 class="fw-bold text-dark mb-4"><?php echo htmlspecialchars($q['question_text']); ?></h5>
+                                        
+                                        <!-- Display Answers/Options -->
+                                        <?php if (in_array($q['question_type'], ['MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE'])): ?>
+                                            <?php 
+                                            $opts = $options_by_question[$q['id']] ?? [];
+                                            $selected_ids = !empty($q['selected_option_ids']) ? explode(',', $q['selected_option_ids']) : [];
+                                            ?>
+                                            <div class="row g-2">
+                                                <?php foreach ($opts as $opt): ?>
+                                                    <?php 
+                                                    $is_selected = in_array($opt['id'], $selected_ids);
+                                                    $is_correct_opt = $opt['is_correct'] == 1;
+                                                    
+                                                    $opt_card_class = "border bg-white text-dark";
+                                                    $icon_html = "";
+                                                    
+                                                    if ($is_selected && $is_correct_opt) {
+                                                        $opt_card_class = "border-success bg-success-subtle text-success fw-semibold";
+                                                        $icon_html = '<i class="bi bi-check-circle-fill me-2"></i>';
+                                                    } elseif ($is_selected && !$is_correct_opt) {
+                                                        $opt_card_class = "border-danger bg-danger-subtle text-danger fw-semibold";
+                                                        $icon_html = '<i class="bi bi-x-circle-fill me-2"></i>';
+                                                    } elseif (!$is_selected && $is_correct_opt) {
+                                                        $opt_card_class = "border-success bg-success-subtle text-success opacity-75";
+                                                        $icon_html = '<i class="bi bi-check-circle me-2"></i>';
+                                                    }
+                                                    ?>
+                                                    <div class="col-12">
+                                                        <div class="p-3 rounded-3 <?php echo $opt_card_class; ?> d-flex align-items-center">
+                                                            <div class="me-2"><?php echo $icon_html; ?></div>
+                                                            <div><?php echo htmlspecialchars($opt['option_text']); ?></div>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php elseif ($q['question_type'] == 'FILL_BLANK'): ?>
+                                            <div class="p-3 rounded-3 border bg-white mb-2">
+                                                <div class="small text-muted mb-1">Your Answer:</div>
+                                                <div class="fw-bold <?php echo $is_correct_status ? 'text-success' : 'text-danger'; ?>">
+                                                    <?php echo htmlspecialchars($q['text_answer'] ?: 'None'); ?>
+                                                </div>
+                                            </div>
+                                            <div class="p-3 rounded-3 border bg-success-subtle text-success-emphasis mb-2">
+                                                <div class="small text-success mb-1">Correct Answer:</div>
+                                                <div class="fw-bold"><?php echo htmlspecialchars($q['correct_text_answer']); ?></div>
+                                            </div>
+                                        <?php elseif (in_array($q['question_type'], ['SHORT_ANSWER', 'LONG_ANSWER'])): ?>
+                                            <div class="p-3 rounded-3 border bg-white mb-2">
+                                                <div class="small text-muted mb-1">Your Submitted Answer:</div>
+                                                <div class="text-dark whitespace-pre-wrap"><?php echo nl2br(htmlspecialchars($q['text_answer'] ?: 'None')); ?></div>
+                                            </div>
+                                            <?php if (!empty($q['correct_text_answer'])): ?>
+                                                <div class="p-3 rounded-3 border bg-light mb-2">
+                                                    <div class="small text-muted mb-1">Suggested Reference Answer:</div>
+                                                    <div class="text-muted whitespace-pre-wrap"><?php echo nl2br(htmlspecialchars($q['correct_text_answer'])); ?></div>
+                                                </div>
+                                            <?php endif; ?>
+                                            <?php if ($q['checked_by_admin'] == 0): ?>
+                                                <div class="alert alert-warning py-2 small mb-0 mt-2">
+                                                    <i class="bi bi-clock-history me-1"></i> Waiting for teacher feedback / manual grading.
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+
+                                        <!-- Explanation Block -->
+                                        <?php if (!empty($q['explanation'])): ?>
+                                            <div class="mt-3 p-3 rounded-3 bg-info-subtle border-start border-4 border-info">
+                                                <div class="fw-bold text-info-emphasis mb-1"><i class="bi bi-info-circle-fill me-2"></i>Explanation</div>
+                                                <div class="text-info-emphasis small"><?php echo nl2br(htmlspecialchars($q['explanation'])); ?></div>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
         </div>
-        
-        <div class="score-details">
-          <div class="score-text"><?php echo $correct_answers; ?> out of <?php echo $total_questions; ?> correct</div>
-          <div class="score-message">
-            <?php 
-            if ($score >= 90) {
-                echo "Outstanding! You've demonstrated exceptional knowledge of this subject.";
-            } elseif ($score >= 80) {
-                echo "Excellent work! You've mastered this topic.";
-            } elseif ($score >= 70) {
-                echo "Good job! You have a solid understanding.";
-            } elseif ($score >= 60) {
-                echo "Not bad, but there's room for improvement.";
-            } elseif ($score >= 50) {
-                echo "You passed, but consider reviewing the material again.";
-            } else {
-                echo "Keep studying and try again. You can do it!";
-            }
-            ?>
-          </div>
-          <div class="result-badge animate__animated animate__bounceIn">
-            <?php echo $is_passed ? '<i class="bi bi-check-circle-fill"></i> ' : '<i class="bi bi-x-circle-fill"></i> ' ?>
-            <?php echo $is_passed ? 'Pass' : 'Fail'; ?>
-          </div>
-        </div>
-      </div>
-      
-      <div class="performance-summary">
-        <div class="performance-item animate__animated animate__fadeInUp" style="animation-delay: 0.1s">
-          <div class="performance-icon">
-            <i class="bi bi-trophy-fill"></i>
-          </div>
-          <div class="performance-value"><?php echo $score; ?>%</div>
-          <div class="performance-label">Overall Score</div>
-        </div>
-        <div class="performance-item animate__animated animate__fadeInUp" style="animation-delay: 0.2s">
-          <div class="performance-icon">
-            <i class="bi bi-check-circle-fill"></i>
-          </div>
-          <div class="performance-value"><?php echo $correct_answers; ?>/<?php echo $total_questions; ?></div>
-          <div class="performance-label">Correct Answers</div>
-        </div>
-        <div class="performance-item animate__animated animate__fadeInUp" style="animation-delay: 0.3s">
-          <div class="performance-icon">
-            <i class="bi bi-x-circle-fill"></i>
-          </div>
-          <div class="performance-value"><?php echo $total_questions - $correct_answers; ?></div>
-          <div class="performance-label">Incorrect Answers</div>
-        </div>
-        <div class="performance-item animate__animated animate__fadeInUp" style="animation-delay: 0.4s">
-          <div class="performance-icon">
-            <i class="bi bi-flag-fill"></i>
-          </div>
-          <div class="performance-value"><?php echo $passing_score; ?>%</div>
-          <div class="performance-label">Passing Score</div>
-        </div>
-      </div>
     </div>
-    
-    <!-- Certificate Section - Only shown if passed -->
-    <?php if ($is_passed && $test_result_id): ?>
-    <div class="certificate-section animate__animated animate__fadeInUp" style="animation-delay: 0.5s">
-      <h2 class="section-title">
-        <i class="bi bi-award-fill"></i> Certificate of Completion
-      </h2>
-      
-      <div class="certificate-preview">
-        <div class="certificate-badge">
-          <i class="bi bi-patch-check-fill"></i>
-        </div>
-        <h3 class="certificate-title">Congratulations!</h3>
-        <p class="certificate-subtitle">You have successfully passed the <?php echo htmlspecialchars($test_name); ?></p>
-        <p class="certificate-text">
-          Your dedication and hard work have paid off. You've demonstrated a solid understanding of the subject matter and achieved a score of <?php echo $score; ?>%. Keep up the excellent work!
-        </p>
-        <a href="generate_certificate.php?id=<?php echo $test_result_id; ?>" class="btn-action btn-primary" target="_blank">
-          <i class="bi bi-download"></i> Download Certificate
-        </a>
-      </div>
-    </div>
-    <?php endif; ?>
-    
-    <!-- Questions Review -->
-    <div class="questions-review animate__animated animate__fadeInUp" style="animation-delay: 0.6s">
-      <h2 class="section-title">
-        <i class="bi bi-list-check"></i> Question Review
-      </h2>
-      
-      <?php foreach ($questions as $index => $question): 
-        $question_id = $question['id'];
-        $user_answer = isset($answers[$question_id]) ? $answers[$question_id] : '';
-        $is_correct = ($user_answer === $question['correct_answer']);
-        $status_class = $is_correct ? 'status-correct' : ($user_answer ? 'status-incorrect' : 'status-unanswered');
-        $status_text = $is_correct ? 'Correct' : ($user_answer ? 'Incorrect' : 'Unanswered');
-        $status_icon = $is_correct ? 'bi-check-circle-fill' : ($user_answer ? 'bi-x-circle-fill' : 'bi-question-circle-fill');
-        
-        // Determine which options to highlight
-        $options = ['A', 'B', 'C', 'D'];
-      ?>
-      <div class="question-card animate__animated animate__fadeInUp" style="animation-delay: <?php echo 0.7 + ($index * 0.1); ?>s">
-        <div class="question-header">
-          <div class="question-number"><?php echo $index + 1; ?></div>
-          <div class="question-status <?php echo $status_class; ?>">
-            <i class="bi <?php echo $status_icon; ?>"></i> <?php echo $status_text; ?>
-          </div>
-        </div>
-        
-        <div class="question-text"><?php echo htmlspecialchars($question['question']); ?></div>
-        
-        <div class="options-list">
-          <?php foreach ($options as $option): 
-            $option_key = 'option_' . strtolower($option);
-            $option_class = 'option-default';
-            $marker_class = 'marker-default';
-            
-            if ($option === $question['correct_answer']) {
-              $option_class = 'option-correct';
-              $marker_class = 'marker-correct';
-            }
-            
-            if ($option === $user_answer) {
-              if ($option === $question['correct_answer']) {
-                $option_class = 'option-correct';
-                $marker_class = 'marker-correct';
-              } else {
-                $option_class = 'option-incorrect';
-                $marker_class = 'marker-incorrect';
-              }
-            }
-          ?>
-          <div class="option-item <?php echo $option_class; ?>">
-            <div class="option-marker <?php echo $marker_class; ?>"><?php echo $option; ?></div>
-            <div class="option-text"><?php echo htmlspecialchars($question[$option_key]); ?></div>
-          </div>
-          <?php endforeach; ?>
-        </div>
-        
-        <div class="answer-feedback">
-          <div class="user-answer">
-            <span class="answer-label">Your Answer:</span>
-            <span class="answer-value">
-              <?php 
-              if ($user_answer && in_array($user_answer, ['A', 'B', 'C', 'D'])) {
-                  $option_key = 'option_' . strtolower($user_answer);
-                  echo $user_answer . '. ' . htmlspecialchars($question[$option_key]);
-              } else {
-                echo 'Not answered';
-              }
-              ?>
-            </span>
-          </div>
-          
-          <div class="correct-answer">
-            <span class="answer-label">Correct Answer:</span>
-            <span class="answer-value">
-              <?php 
-              $correct_answer = $question['correct_answer'];
-              if ($correct_answer && in_array($correct_answer, ['A', 'B', 'C', 'D'])) {
-                  $option_key = 'option_' . strtolower($correct_answer);
-                  echo $correct_answer . '. ' . htmlspecialchars($question[$option_key]);
-              } else {
-                  echo 'Not available';
-              }
-              ?>
-            </span>
-          </div>
-        </div>
-        
-        <?php if (!empty($question['explanation'])): ?>
-        <div class="explanation">
-          <div class="explanation-title">
-            <i class="bi bi-info-circle-fill"></i> Explanation:
-          </div>
-          <?php echo htmlspecialchars($question['explanation']); ?>
-        </div>
-        <?php endif; ?>
-      </div>
-      <?php endforeach; ?>
-    </div>
-    
-    <div class="action-buttons animate__animated animate__fadeInUp" style="animation-delay: 1.5s">
-      <a href="test.php" class="btn-action btn-secondary">
-        <i class="bi bi-arrow-left"></i> Back to Tests
-      </a>
-      <a href="my_tests.php" class="btn-action btn-primary">
-        <i class="bi bi-list-ul"></i> My Test History
-      </a>
-      <button onclick="window.print()" class="btn-action btn-success">
-        <i class="bi bi-printer"></i> Print Results
-      </button>
-    </div>
-  </div>
-  
-  <!-- Vendor JS Files -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Add animation to score display
-    document.addEventListener('DOMContentLoaded', function() {
-      const scoreValue = document.querySelector('.score-value');
-      if (scoreValue) {
-        let currentScore = 0;
-        const targetScore = <?php echo $score; ?>;
-        const duration = 2000; // 2 seconds
-        const steps = 60;
-        const increment = targetScore / steps;
-        const stepTime = duration / steps;
-        
-        const timer = setInterval(() => {
-          currentScore += increment;
-          if (currentScore >= targetScore) {
-            currentScore = targetScore;
-            clearInterval(timer);
-          }
-          scoreValue.textContent = Math.round(currentScore) + '%';
-        }, stepTime);
-      }
-    });
-  </script>
-</body>
-</html>
+</main>
+
+<style>
+.bg-gradient-indigo {
+    background: linear-gradient(135deg, #475bb2, #2f3b75);
+}
+.bg-gradient-success {
+    background: linear-gradient(135deg, #11998e, #38ef7d);
+}
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #00c6ff, #0072ff);
+}
+.bg-gradient-dark-blue {
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+}
+.btn-outline-indigo {
+    color: #475bb2;
+    border-color: #475bb2;
+}
+.btn-outline-indigo:hover {
+    background-color: #475bb2;
+    color: #ffffff;
+}
+.badge-card {
+    transition: all 0.2s ease-in-out;
+}
+.badge-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+@keyframes crown-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+.animated-crown {
+    animation: crown-pulse 2s infinite ease-in-out;
+}
+</style>
+
+<?php
+include "includes/footer.php";
+?>

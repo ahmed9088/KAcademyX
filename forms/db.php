@@ -1,10 +1,11 @@
 <?php
-$host = "localhost";
-$user = "root";   // MySQL username
-$pass = "";       // MySQL password
-$dbname = "kacademyx";
+$host = getenv('DB_HOST') ?: "localhost";
+$user = getenv('DB_USER') ?: "root";
+$pass = getenv('DB_PASS') !== false ? getenv('DB_PASS') : "";
+$dbname = getenv('DB_NAME') ?: "kacademyx";
+$port = getenv('DB_PORT') ?: 3306;
 
-$conn = new mysqli($host, $user, $pass, $dbname);
+$conn = new mysqli($host, $user, $pass, $dbname, $port);
 
 if ($conn->connect_error) {
     die("Database connection failed: " . $conn->connect_error);

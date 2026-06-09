@@ -87,13 +87,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     if (move_uploaded_file($file_tmp, $file_path)) {
                         // Delete old image if exists
                         if (!empty($existing_image)) {
-                            $old_image_path = "../" . $existing_image;
+                            $filename = basename($existing_image);
+                            $old_image_path = dirname(dirname(__DIR__)) . "/Admin/uploads/instructors/" . $filename;
                             if (file_exists($old_image_path)) {
                                 unlink($old_image_path);
                             }
                         }
                         
-                        $profile_image = "uploads/instructors/" . $file_name;
+                        $profile_image = "Admin/uploads/instructors/" . $file_name;
                     } else {
                         $error = "Failed to upload profile image!";
                     }
@@ -200,7 +201,7 @@ $pageTitle = "Edit Instructor";
                             <?php if (!empty($instructor['profile_image'])): ?>
                                 <div class="mt-2">
                                     <p class="mb-1">Current Image:</p>
-                                    <img src="../<?php echo htmlspecialchars($instructor['profile_image']); ?>" alt="Current Profile" class="img-thumbnail" style="max-height: 150px;">
+                                    <img src="<?php echo htmlspecialchars(getImagePath($instructor['profile_image'], '')); ?>" alt="Current Profile" class="img-thumbnail" style="max-height: 150px;">
                                 </div>
                             <?php endif; ?>
                             

@@ -3,14 +3,16 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Set page title
+$pageTitle = "Manage Instructors";
+
 // Include database connection
 include "../db.php";
 
 // Include header after processing redirects
 include "../includes/header.php";
-
 include "../includes/sidebar.php"; 
-include "../includes/footer.php"; 
+include "../includes/footer.php";
 
 // Handle delete action with proper security
 if (isset($_GET['delete'])) {
@@ -47,7 +49,8 @@ if (isset($_GET['delete'])) {
     if ($stmt->execute()) {
         // Delete the profile image if it exists
         if (!empty($profile_image)) {
-            $image_path = "../" . $profile_image;
+            $filename = basename($profile_image);
+            $image_path = dirname(dirname(__DIR__)) . "/Admin/uploads/instructors/" . $filename;
             if (file_exists($image_path)) {
                 unlink($image_path);
             }
@@ -72,206 +75,7 @@ if (isset($_GET['success'])) {
 if (isset($_GET['error'])) {
     $error_message = $_GET['error'];
 }
-
-// Set page title
-$pageTitle = "Manage Instructors";
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $pageTitle; ?> - KAcademyX</title>
-    
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    
-    <!-- DataTables CSS -->
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-    
-    <!-- Custom CSS -->
-    <style>
-        :root {
-            --primary-color: #4154f1;
-            --secondary-color: #717ff5;
-            --accent-color: #ff6b6b;
-            --dark-color: #2c3e50;
-            --light-color: #f8f9fa;
-        }
-        
-        body {
-            background-color: #f5f7fb;
-            color: #344767;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-        }
-        
-        .card-header {
-            background: linear-gradient(120deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            border-radius: 12px 12px 0 0 !important;
-            padding: 1.2rem 1.5rem;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(120deg, var(--primary-color), var(--secondary-color));
-            border: none;
-            border-radius: 8px;
-            padding: 0.5rem 1.5rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(65, 84, 241, 0.4);
-        }
-        
-        .btn-sm {
-            border-radius: 6px;
-            padding: 0.25rem 0.75rem;
-        }
-        
-        .table th {
-            font-weight: 600;
-            color: #344767;
-            border-top: none;
-            padding: 1rem 0.75rem;
-            background-color: #f8f9fa;
-        }
-        
-        .table td {
-            padding: 1rem 0.75rem;
-            vertical-align: middle;
-        }
-        
-        .table-striped tbody tr:nth-of-type(odd) {
-            background-color: rgba(65, 84, 241, 0.03);
-        }
-        
-        .action-buttons .btn {
-            margin-right: 0.4rem;
-        }
-        
-        .alert {
-            border: none;
-            border-radius: 10px;
-            padding: 1rem 1.5rem;
-        }
-        
-        .alert-success {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        
-        .alert-danger {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        
-        .page-title {
-            color: var(--dark-color);
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-        
-        .breadcrumb {
-            background-color: transparent;
-            padding: 0;
-            margin-bottom: 1.5rem;
-        }
-        
-        .profile-img {
-            width: 45px;
-            height: 45px;
-            object-fit: cover;
-            border-radius: 50%;
-            border: 2px solid #fff;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .status-badge {
-            padding: 0.35rem 0.65rem;
-            border-radius: 50px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        
-        .modal-content {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-        }
-        
-        .modal-header {
-            border-bottom: 1px solid #e9ecef;
-            padding: 1.25rem 1.5rem;
-        }
-        
-        .modal-footer {
-            border-top: 1px solid #e9ecef;
-            padding: 1rem 1.5rem;
-        }
-        
-        .dataTables_wrapper {
-            padding: 0;
-        }
-        
-        .dataTables_filter input {
-            border-radius: 6px;
-            border: 1px solid #d2d6da;
-            padding: 0.375rem 0.75rem;
-        }
-        
-        .empty-state {
-            padding: 3rem 1rem;
-            text-align: center;
-        }
-        
-        .empty-state i {
-            font-size: 4rem;
-            color: #c2c7d0;
-            margin-bottom: 1.5rem;
-        }
-        
-        @media (max-width: 768px) {
-            .card-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            .card-header .btn {
-                margin-top: 1rem;
-            }
-            
-            .action-buttons {
-                display: flex;
-                flex-direction: column;
-            }
-            
-            .action-buttons .btn {
-                margin-bottom: 0.5rem;
-                margin-right: 0;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container-fluid">
         <!-- Page Header -->
         <div class="d-sm-flex align-items-center justify-content-between mb-4">
             <div>
@@ -339,7 +143,8 @@ $pageTitle = "Manage Instructors";
                                         
                                         // Display profile image if available
                                         if (!empty($row['profile_image'])) {
-                                            echo "<img src='../{$row['profile_image']}' alt='Profile' class='profile-img'>";
+                                            $profileImagePath = getImagePath($row['profile_image'], '');
+                                            echo "<img src='" . htmlspecialchars($profileImagePath) . "' alt='Profile' class='profile-img'>";
                                         } else {
                                             echo "<div class='rounded-circle bg-secondary d-flex align-items-center justify-content-center' style='width: 45px; height: 45px;'>
                                                     <i class='bi bi-person-fill text-white'></i>
@@ -383,10 +188,13 @@ $pageTitle = "Manage Instructors";
                         </div>
                         <?php endif; ?>
                     </div>
-                </div>
             </div>
         </div>
-    </div>
+        
+        <!-- Close admin panel wrappers -->
+        </div> <!-- col-md-10 content -->
+        </div> <!-- row -->
+        </div> <!-- container-fluid -->
 
     <!-- Delete Confirmation Modal -->
     <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
