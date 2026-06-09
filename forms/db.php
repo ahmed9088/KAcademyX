@@ -20,4 +20,19 @@ if ($host !== "localhost" && $host !== "127.0.0.1") {
         die("Database connection failed: " . $conn->connect_error);
     }
 }
+
+// Disable ONLY_FULL_GROUP_BY mode to ensure compatibility with legacy queries
+if ($conn) {
+    $res = $conn->query("SELECT @@sql_mode as mode");
+    if ($res) {
+        $row = $res->fetch_assoc();
+        $modes = explode(',', $row['mode']);
+        $key = array_search('ONLY_FULL_GROUP_BY', $modes);
+        if ($key !== false) {
+            unset($modes[$key]);
+            $new_mode = implode(',', $modes);
+            $conn->query("SET SESSION sql_mode = '" . $conn->real_escape_string($new_mode) . "'");
+        }
+    }
+}
 ?>
