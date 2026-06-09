@@ -1,7 +1,7 @@
 <?php session_start(); ?>
 <?php 
 // Include database connection
-include "admin/db.php";
+include "Admin/db.php";
 // Check if database connection is successful
 if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
