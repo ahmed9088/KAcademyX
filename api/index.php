@@ -6,6 +6,13 @@ $uri = $_SERVER['REQUEST_URI'];
 $path = parse_url($uri, PHP_URL_PATH);
 $normalizedPath = ltrim($path, '/');
 
+// Strip KAcademyX subdirectory prefix if present (Vercel routes compatibility)
+if (strpos($normalizedPath, 'KAcademyX/') === 0) {
+    $normalizedPath = substr($normalizedPath, 10);
+} elseif ($normalizedPath === 'KAcademyX') {
+    $normalizedPath = 'index.php';
+}
+
 if ($normalizedPath === '') {
     $normalizedPath = 'index.php';
 }

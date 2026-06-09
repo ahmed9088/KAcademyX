@@ -6,8 +6,8 @@
   },
   "routes": [
     {
-      "src": "/(assets|certificates|tcpdf)/(.*)",
-      "dest": "/$1/$2"
+      "src": "/(KAcademyX/)?(Admin/assets|Admin/uploads|assets|certificates|tcpdf)/(.*)",
+      "dest": "/$2/$3"
     },
     {
       "src": "/(.*)",
