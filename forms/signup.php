@@ -78,7 +78,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $password_err = "Please enter a password.";
     } elseif (strlen(trim($_POST["password"])) < 8) {
         $password_err = "Password must have at least 8 characters.";
-    } elseif (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/", trim($_POST["password"]))) {
+    } elseif (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/", trim($_POST["password"]))) {
         $password_err = "Password must contain at least one uppercase letter, one lowercase letter, and one number.";
     } else {
         $password = trim($_POST["password"]);
