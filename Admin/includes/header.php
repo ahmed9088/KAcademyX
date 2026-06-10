@@ -74,5 +74,42 @@ if (!function_exists('getImagePath')) {
     <link href="/KAcademyX/Admin/assets/css/admin.css" rel="stylesheet">
 </head>
 <body>
+    <!-- Mobile Header -->
+    <div class="mobile-header d-flex d-md-none justify-content-between align-items-center px-3 py-2 bg-dark text-white sticky-top">
+        <button class="btn text-white p-0 shadow-none border-0" id="sidebarToggleBtn" type="button" aria-label="Toggle Sidebar">
+            <i class="bi bi-list fs-3"></i>
+        </button>
+        <h5 class="mb-0 text-white font-weight-bold" style="font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.5px;">KAcademyX Admin</h5>
+        <div class="text-white-50">
+            <i class="bi bi-person-circle fs-5"></i>
+        </div>
+    </div>
+
+    <!-- Sidebar Mobile Backdrop Overlay -->
+    <div class="sidebar-overlay d-md-none" id="sidebarOverlay"></div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggleBtn = document.getElementById('sidebarToggleBtn');
+        const closeBtn = document.getElementById('sidebarCloseBtn');
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        
+        function toggleSidebar() {
+            if (sidebar) sidebar.classList.toggle('show');
+            if (overlay) overlay.classList.toggle('show');
+        }
+        
+        function closeSidebar() {
+            if (sidebar) sidebar.classList.remove('show');
+            if (overlay) overlay.classList.remove('show');
+        }
+        
+        if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
+        if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+        if (overlay) overlay.addEventListener('click', closeSidebar);
+    });
+    </script>
+
     <div class="container-fluid">
         <div class="row">

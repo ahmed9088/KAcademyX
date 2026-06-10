@@ -1,6 +1,9 @@
 <div class="col-md-2 sidebar p-0">
     <div class="d-flex flex-column p-3 text-white">
-        <h4 class="mb-4 text-center">KAcademyX</h4>
+        <div class="d-flex justify-content-between align-items-center mb-4 px-2">
+            <h4 class="mb-0">KAcademyX</h4>
+            <button class="btn-close btn-close-white d-md-none" id="sidebarCloseBtn" type="button" aria-label="Close"></button>
+        </div>
         <ul class="nav nav-pills flex-column mb-auto">
             <li class="nav-item">
                 <a href="/KAcademyX/Admin/index.php" class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'index.php' && strpos($_SERVER['PHP_SELF'], 'Admin/index.php') !== false ? 'active' : ''; ?>">
